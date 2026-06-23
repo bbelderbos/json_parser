@@ -232,4 +232,61 @@ mod tests {
         assert!(tokens.contains(&Token::String("active".to_string())));
         assert!(tokens.contains(&Token::Boolean(true)));
     }
+
+    #[test]
+    fn test_array() {
+        let tokens = tokenize(r#"[1, 2, 3]"#);
+        assert_eq!(tokens.len(), 7);
+        assert_eq!(tokens[0], Token::LeftBracket);
+        assert_eq!(tokens[1], Token::Number(1.0));
+        assert_eq!(tokens[2], Token::Comma);
+        assert_eq!(tokens[3], Token::Number(2.0));
+        assert_eq!(tokens[4], Token::Comma);
+        assert_eq!(tokens[5], Token::Number(3.0));
+        assert_eq!(tokens[6], Token::RightBracket);
+    }
+
+    #[test]
+    fn test_nested_objects() {
+        let tokens = tokenize(r#"{"person": {"name": "Alice", "age": 30}}"#);
+        assert_eq!(tokens.len(), 13);
+        assert_eq!(tokens[0], Token::LeftBrace);
+        assert_eq!(tokens[1], Token::String("person".to_string()));
+        assert_eq!(tokens[2], Token::Colon);
+        assert_eq!(tokens[3], Token::LeftBrace);
+        assert_eq!(tokens[4], Token::String("name".to_string()));
+        assert_eq!(tokens[5], Token::Colon);
+        assert_eq!(tokens[6], Token::String("Alice".to_string()));
+        assert_eq!(tokens[7], Token::Comma);
+        assert_eq!(tokens[8], Token::String("age".to_string()));
+        assert_eq!(tokens[9], Token::Colon);
+        assert_eq!(tokens[10], Token::Number(30.0));
+        assert_eq!(tokens[11], Token::RightBrace);
+        assert_eq!(tokens[12], Token::RightBrace);
+    }
+
+    #[test]
+    fn test_edge_cases() {
+        let tokens = tokenize(r#""", 0, -5"#);
+        assert_eq!(tokens.len(), 5);
+        assert_eq!(tokens[0], Token::String("".to_string()));
+        assert_eq!(tokens[1], Token::Comma);
+        assert_eq!(tokens[2], Token::Number(0.0));
+        assert_eq!(tokens[3], Token::Comma);
+        assert_eq!(tokens[4], Token::Number(-5.0));
+    }
+
+    #[test]
+    fn test_sample_json_file() {
+        let input = include_str!("../../test_data/sample.json");
+        let tokens = tokenize(input);
+
+        assert!(tokens.contains(&Token::String("name".to_string())));
+        assert!(tokens.contains(&Token::String("Alice Johnson".to_string())));
+        assert!(tokens.contains(&Token::Number(28.0)));
+        assert!(tokens.contains(&Token::Boolean(true)));
+        assert!(tokens.contains(&Token::String("tags".to_string())));
+        assert!(tokens.contains(&Token::LeftBracket));
+        assert!(tokens.contains(&Token::String("developer".to_string())));
+    }
 }
