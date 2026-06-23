@@ -132,6 +132,7 @@ mod tests {
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0], Token::String("hello world".to_string()));
     }
+
     #[test]
     fn test_empty_string() {
         // Outer boundary: adjacent quotes with no inner content
@@ -163,12 +164,14 @@ mod tests {
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0], Token::String("phone: 555-1234".to_string()));
     }
+
     #[test]
     fn test_number() {
         let tokens = tokenize("42");
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0], Token::Number(42.0));
     }
+
     #[test]
     fn test_negative_number() {
         let tokens = tokenize("-42");
@@ -209,6 +212,7 @@ mod tests {
         assert_eq!(tokens[1], Token::Boolean(false));
         assert_eq!(tokens[2], Token::Null);
     }
+
     #[test]
     fn test_simple_object() {
         let tokens = tokenize(r#"{"name": "Alice"}"#);
