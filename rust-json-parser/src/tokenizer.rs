@@ -72,36 +72,21 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                     println!("Invalid number: {}", number_str);
                 }
             }
-            't' | 'f' => {
-                let mut bool_str = String::new();
+            't' | 'f' | 'n' => {
+                let mut temp_str = String::new();
                 while let Some(&next_ch) = chars.peek() {
                     if next_ch.is_alphabetic() {
-                        bool_str.push(next_ch);
+                        temp_str.push(next_ch);
                         chars.next();
                     } else {
                         break;
                     }
                 }
-                match bool_str.as_str() {
+                match temp_str.as_str() {
                     "true" => tokens.push(Token::Boolean(true)),
                     "false" => tokens.push(Token::Boolean(false)),
-                    _ => println!("Unexpected token: {}", bool_str),
-                }
-            }
-            'n' => {
-                let mut null_str = String::new();
-                while let Some(&next_ch) = chars.peek() {
-                    if next_ch.is_alphabetic() {
-                        null_str.push(next_ch);
-                        chars.next();
-                    } else {
-                        break;
-                    }
-                }
-                if null_str == "null" {
-                    tokens.push(Token::Null);
-                } else {
-                    println!("Unexpected token: {}", null_str);
+                    "null" => tokens.push(Token::Null),
+                    _ => println!("Unexpected token: {}", temp_str),
                 }
             }
             ' ' | '\n' | '\r' | '\t' => {
