@@ -23,13 +23,19 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 // todo: escape sequences, unicode, etc. is for later weeks
                 chars.next();
                 let mut string_value = String::new();
+                let mut terminated = false;
                 while let Some(&next_ch) = chars.peek() {
                     if next_ch == '"' {
                         chars.next();
+                        terminated = true;
                         break;
                     }
                     string_value.push(next_ch);
                     chars.next();
+                }
+                if !terminated {
+                    eprintln!("Unterminated string literal");
+                    break;
                 }
                 tokens.push(Token::String(string_value));
             }
@@ -291,5 +297,15 @@ mod tests {
         assert!(tokens.contains(&Token::String("tags".to_string())));
         assert!(tokens.contains(&Token::LeftBracket));
         assert!(tokens.contains(&Token::String("developer".to_string())));
+    }
+
+    #[test]
+    fn test_unterminated_string_should_not_produce_token() {
+        let tokens = tokenize(r#""hello"#);
+        assert!(
+            tokens.is_empty(),
+            "unterminated string should not emit a token, got: {:?}",
+            tokens
+        );
     }
 }
