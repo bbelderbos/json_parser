@@ -191,6 +191,16 @@ mod tests {
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0], Token::Number(5.0)); // todo: tokenizer to reject leading decimal without a leading zero
     }
+
+    #[test]
+    fn test_malformed_numbers_silently_dropped() {
+        let tokens = tokenize("1-2-3");
+        assert!(tokens.is_empty());
+
+        let tokens = tokenize("1.2.3");
+        assert!(tokens.is_empty());
+    }
+
     #[test]
     fn test_boolean_and_null() {
         let tokens = tokenize("true false null");
