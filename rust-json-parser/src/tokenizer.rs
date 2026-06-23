@@ -77,7 +77,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                     tokens.push(Token::Number(number));
                 } else {
                     // todo: handle error
-                    println!("Invalid number: {}", number_str);
+                    eprintln!("Invalid number: {}", number_str);
                 }
             }
             't' | 'f' | 'n' => {
@@ -95,7 +95,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                     "false" => tokens.push(Token::Boolean(false)),
                     "null" => tokens.push(Token::Null),
                     // todo: handle error
-                    _ => println!("Unexpected token: {}", temp_str),
+                    _ => eprintln!("Unexpected token: {}", temp_str),
                 }
             }
             ' ' | '\n' | '\r' | '\t' => {
@@ -104,7 +104,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             }
             _ => {
                 // todo: handle error
-                println!("Unexpected character: {}", ch);
+                eprintln!("Unexpected character: {}", ch);
                 chars.next();
             }
         }
