@@ -20,6 +20,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
     while let Some(&ch) = chars.peek() {
         match ch {
             '"' => {
+                // todo: escape sequences, unicode, etc. is for later weeks
                 chars.next();
                 let mut string_value = String::new();
                 while let Some(&next_ch) = chars.peek() {
@@ -69,6 +70,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 if let Ok(number) = number_str.parse::<f64>() {
                     tokens.push(Token::Number(number));
                 } else {
+                    // todo: handle error
                     println!("Invalid number: {}", number_str);
                 }
             }
@@ -86,6 +88,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                     "true" => tokens.push(Token::Boolean(true)),
                     "false" => tokens.push(Token::Boolean(false)),
                     "null" => tokens.push(Token::Null),
+                    // todo: handle error
                     _ => println!("Unexpected token: {}", temp_str),
                 }
             }
@@ -94,6 +97,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 chars.next();
             }
             _ => {
+                // todo: handle error
                 println!("Unexpected character: {}", ch);
                 chars.next();
             }
@@ -197,7 +201,6 @@ mod tests {
     #[test]
     fn test_simple_object() {
         let tokens = tokenize(r#"{"name": "Alice"}"#);
-        println!("{:?}", tokens);
         assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0], Token::LeftBrace);
         assert_eq!(tokens[1], Token::String("name".to_string()));
