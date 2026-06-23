@@ -13,7 +13,7 @@ pub enum Token {
 }
 
 pub fn tokenize(input: &str) -> Vec<Token> {
-    let mut tokens = Vec::new();
+    let mut tokens = Vec::with_capacity(input.len() / 4);
 
     let mut chars = input.chars().peekable();
 
