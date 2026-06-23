@@ -59,7 +59,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             '0'..='9' | '-' => {
                 let mut number_str = String::new();
                 while let Some(&next_ch) = chars.peek() {
-                    if next_ch.is_digit(10) || next_ch == '.' || next_ch == '-' {
+                    if next_ch.is_ascii_digit() || next_ch == '.' || next_ch == '-' {
                         number_str.push(next_ch);
                         chars.next();
                     } else {
