@@ -39,28 +39,17 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 }
                 tokens.push(Token::String(string_value));
             }
-            '{' => {
-                tokens.push(Token::LeftBrace);
-                chars.next();
-            }
-            '}' => {
-                tokens.push(Token::RightBrace);
-                chars.next();
-            }
-            '[' => {
-                tokens.push(Token::LeftBracket);
-                chars.next();
-            }
-            ']' => {
-                tokens.push(Token::RightBracket);
-                chars.next();
-            }
-            ',' => {
-                tokens.push(Token::Comma);
-                chars.next();
-            }
-            ':' => {
-                tokens.push(Token::Colon);
+            '{' | '}' | '[' | ']' | ',' | ':' => {
+                let token = match ch {
+                    '{' => Token::LeftBrace,
+                    '}' => Token::RightBrace,
+                    '[' => Token::LeftBracket,
+                    ']' => Token::RightBracket,
+                    ',' => Token::Comma,
+                    ':' => Token::Colon,
+                    _ => unreachable!(),
+                };
+                tokens.push(token);
                 chars.next();
             }
             '0'..='9' | '-' => {
