@@ -194,11 +194,10 @@ mod tests {
 
     #[test]
     fn test_leading_decimal_not_a_number() {
-        // .5 is invalid JSON, currently it skips the leading dot and treats it as a number starting with 5
-        // this is not correct json though
+        // .5 is invalid JSON - numbers must have leading digit (0.5 is valid)
         let tokens = tokenize(".5");
-        assert_eq!(tokens.len(), 1);
-        assert_eq!(tokens[0], Token::Number(5.0)); // todo: tokenizer to reject leading decimal without a leading zero
+        // Should NOT be interpreted as 0.5
+        assert!(!tokens.contains(&Token::Number(0.5)));
     }
 
     #[test]
