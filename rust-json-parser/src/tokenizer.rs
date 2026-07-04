@@ -25,10 +25,12 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
         match ch {
             '"' => {
                 // todo: escape sequences, unicode, etc. is for later weeks
+                let start_position = input.len() - chars.clone().count();
                 chars.next();
+
                 let mut string_value = String::new();
                 let mut terminated = false;
-                let start_position = input.len() - chars.clone().count();
+
                 while let Some(&next_ch) = chars.peek() {
                     if next_ch == '"' {
                         chars.next();
@@ -59,8 +61,8 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                 chars.next();
             }
             '0'..='9' | '-' => {
-                let mut number_str = String::new();
                 let start_position = input.len() - chars.clone().count();
+                let mut number_str = String::new();
                 while let Some(&next_ch) = chars.peek() {
                     if next_ch.is_ascii_digit() || next_ch == '.' || next_ch == '-' {
                         number_str.push(next_ch);
@@ -79,8 +81,8 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                 }
             }
             't' | 'f' | 'n' => {
-                let mut temp_str = String::new();
                 let start_position = input.len() - chars.clone().count();
+                let mut temp_str = String::new();
                 while let Some(&next_ch) = chars.peek() {
                     if next_ch.is_alphabetic() {
                         temp_str.push(next_ch);
@@ -331,6 +333,6 @@ mod tests {
     #[test]
     fn test_unterminated_string_should_not_produce_token() {
         let err = tokenize(r#""hello"#).unwrap_err();
-        assert!(matches!(err, JsonError::UnterminatedString { position: 1 }))
+        assert!(matches!(err, JsonError::UnterminatedString { position: 0 }))
     }
 }
