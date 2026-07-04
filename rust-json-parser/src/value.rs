@@ -12,7 +12,7 @@ impl JsonValue {
     }
     pub fn as_str(&self) -> Option<&str> {
         match self {
-            JsonValue::String(s) => Some(s),
+            JsonValue::String(s) => Some(s.as_str()),
             _ => None,
         }
     }
