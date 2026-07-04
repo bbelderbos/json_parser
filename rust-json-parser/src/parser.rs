@@ -14,6 +14,8 @@ pub fn parse_json(input: &str) -> Result<JsonValue> {
             position: 0,
         });
     }
+    // TODO: reject trailing tokens after the first value
+    // (e.g. "42 true" currently parses as Number(42.0))
     match &tokens[0] {
         Token::Null => Ok(JsonValue::Null),
         Token::Boolean(b) => Ok(JsonValue::Boolean(*b)),
