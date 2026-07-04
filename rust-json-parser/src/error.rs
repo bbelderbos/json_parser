@@ -15,6 +15,9 @@ pub enum JsonError {
         value: String,
         position: usize,
     },
+    UnterminatedString {
+        position: usize,
+    },
 }
 
 impl fmt::Display for JsonError {
@@ -40,6 +43,9 @@ impl fmt::Display for JsonError {
             }
             JsonError::InvalidNumber { value, position } => {
                 write!(f, "Invalid number '{}' at position {}", value, position)
+            }
+            JsonError::UnterminatedString { position } => {
+                write!(f, "Unterminated string starting at position {}", position)
             }
         }
     }
