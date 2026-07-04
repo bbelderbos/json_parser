@@ -41,7 +41,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                     chars.next();
                 }
                 if !terminated {
-                    return Err(JsonError::UnterminatedString {
+                    Err(JsonError::UnterminatedString {
                         position: start_position,
                     })?;
                 }
@@ -100,7 +100,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                             expected: "true, false, or null".to_string(),
                             found: temp_str,
                             position: start_position,
-                        })
+                        });
                     }
                 }
             }

@@ -6,7 +6,7 @@ type Result<T> = std::result::Result<T, JsonError>;
 
 pub fn parse_json(input: &str) -> Result<JsonValue> {
     let tokens = tokenize(input)?;
-    if tokens.len() == 0 {
+    if tokens.is_empty() {
         // TODO: update position for each error when
         // we move to a struct
         return Err(JsonError::UnexpectedEndOfInput {
