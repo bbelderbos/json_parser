@@ -1,5 +1,5 @@
 use crate::error::JsonError;
-use crate::tokenizer::{tokenize, Token};
+use crate::tokenizer::{Token, tokenize};
 use crate::value::JsonValue;
 
 type Result<T> = std::result::Result<T, JsonError>;
@@ -14,8 +14,13 @@ pub fn parse_json(input: &str) -> Result<JsonValue> {
             position: 0,
         });
     }
-    // TODO: reject trailing tokens after the first value
-    // (e.g. "42 true" currently parses as Number(42.0))
+    if tokens.len() > 1 {
+        return Err(JsonError::UnexpectedToken {
+            expected: "end of input".to_string(),
+            found: format!("{:?}", tokens[1]),
+            position: 0,
+        });
+    }
     match &tokens[0] {
         Token::Null => Ok(JsonValue::Null),
         Token::Boolean(b) => Ok(JsonValue::Boolean(*b)),
@@ -88,6 +93,19 @@ mod tests {
     fn test_parse_error_invalid_token() {
         let result = parse_json("@");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_error_trailing_tokens() {
+        for input in ["42 true", "null null", r#""a" "b""#] {
+            let result = parse_json(input);
+            match result {
+                Err(JsonError::UnexpectedToken { expected, .. }) => {
+                    assert_eq!(expected, "end of input");
+                }
+                _ => panic!("Expected UnexpectedToken error for {input:?}"),
+            }
+        }
     }
 
     #[test]
