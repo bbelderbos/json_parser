@@ -1,8 +1,6 @@
-use crate::error::JsonError;
+use crate::error::{JsonError, Result};
 use crate::tokenizer::{Token, tokenize};
 use crate::value::JsonValue;
-
-type Result<T> = std::result::Result<T, JsonError>;
 
 pub fn parse_json(input: &str) -> Result<JsonValue> {
     let tokens = tokenize(input)?;

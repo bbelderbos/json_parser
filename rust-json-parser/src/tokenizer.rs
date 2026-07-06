@@ -1,4 +1,4 @@
-use crate::error::JsonError;
+use crate::error::{JsonError, Result};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
@@ -13,8 +13,6 @@ pub enum Token {
     Boolean(bool),
     Null,
 }
-
-type Result<T> = std::result::Result<T, JsonError>;
 
 pub fn tokenize(input: &str) -> Result<Vec<Token>> {
     let mut tokens = Vec::with_capacity(input.len() / 4);

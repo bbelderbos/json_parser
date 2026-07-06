@@ -3,12 +3,10 @@ mod parser;
 mod tokenizer;
 mod value;
 
-pub use error::JsonError;
+pub use error::{JsonError, Result};
 pub use parser::parse_json;
 pub use tokenizer::{Token, tokenize};
 pub use value::JsonValue;
-
-pub type Result<T> = std::result::Result<T, JsonError>;
 
 #[cfg(test)]
 mod tests {

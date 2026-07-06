@@ -1,5 +1,7 @@
 use std::fmt;
 
+pub type Result<T> = std::result::Result<T, JsonError>;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum JsonError {
     UnexpectedToken {
