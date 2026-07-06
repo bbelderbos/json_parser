@@ -41,9 +41,9 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                     chars.next();
                 }
                 if !terminated {
-                    Err(JsonError::UnterminatedString {
+                    return Err(JsonError::UnterminatedString {
                         position: start_position,
-                    })?;
+                    });
                 }
                 tokens.push(Token::String(string_value));
             }
@@ -74,10 +74,10 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                 if let Ok(number) = number_str.parse::<f64>() {
                     tokens.push(Token::Number(number));
                 } else {
-                    Err(JsonError::InvalidNumber {
+                    return Err(JsonError::InvalidNumber {
                         value: number_str,
                         position: start_position,
-                    })?;
+                    });
                 }
             }
             't' | 'f' | 'n' => {
