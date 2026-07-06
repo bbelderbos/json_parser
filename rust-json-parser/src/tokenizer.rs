@@ -19,19 +19,19 @@ type Result<T> = std::result::Result<T, JsonError>;
 pub fn tokenize(input: &str) -> Result<Vec<Token>> {
     let mut tokens = Vec::with_capacity(input.len() / 4);
 
-    let mut chars = input.chars().peekable();
+    let mut chars = input.char_indices().peekable();
 
-    while let Some(&ch) = chars.peek() {
+    while let Some(&(pos, ch)) = chars.peek() {
         match ch {
             '"' => {
                 // todo: escape sequences, unicode, etc. is for later weeks
-                let start_position = input.len() - chars.clone().count();
+                let start_position = pos;
                 chars.next();
 
                 let mut string_value = String::new();
                 let mut terminated = false;
 
-                while let Some(&next_ch) = chars.peek() {
+                while let Some(&(_, next_ch)) = chars.peek() {
                     if next_ch == '"' {
                         chars.next();
                         terminated = true;
@@ -61,9 +61,9 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                 chars.next();
             }
             '0'..='9' | '-' => {
-                let start_position = input.len() - chars.clone().count();
+                let start_position = pos;
                 let mut number_str = String::new();
-                while let Some(&next_ch) = chars.peek() {
+                while let Some(&(_, next_ch)) = chars.peek() {
                     if next_ch.is_ascii_digit() || next_ch == '.' || next_ch == '-' {
                         number_str.push(next_ch);
                         chars.next();
@@ -81,9 +81,9 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                 }
             }
             't' | 'f' | 'n' => {
-                let start_position = input.len() - chars.clone().count();
+                let start_position = pos;
                 let mut temp_str = String::new();
-                while let Some(&next_ch) = chars.peek() {
+                while let Some(&(_, next_ch)) = chars.peek() {
                     if next_ch.is_alphabetic() {
                         temp_str.push(next_ch);
                         chars.next();
@@ -109,11 +109,10 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                 chars.next();
             }
             _ => {
-                let current_position = input.len() - chars.clone().count();
                 return Err(JsonError::UnexpectedToken {
                     expected: "valid JSON token".to_string(),
                     found: ch.to_string(),
-                    position: current_position,
+                    position: pos,
                 });
             }
         }
@@ -328,6 +327,22 @@ mod tests {
         assert!(tokens.contains(&Token::LeftBracket));
         assert!(tokens.contains(&Token::String("developer".to_string())));
         Ok(())
+    }
+
+    #[test]
+    fn test_position_is_byte_offset_after_multibyte() {
+        // "café" is 5 chars but 6 bytes; the '@' that follows sits at byte 8
+        // (6 bytes for the quoted string + 1 space + 1). Position must be the
+        // byte offset, not skewed by a char-vs-byte count mix.
+        let err = tokenize(r#""café" @"#).unwrap_err();
+        assert_eq!(
+            err,
+            JsonError::UnexpectedToken {
+                expected: "valid JSON token".to_string(),
+                found: "@".to_string(),
+                position: 8,
+            }
+        );
     }
 
     #[test]
