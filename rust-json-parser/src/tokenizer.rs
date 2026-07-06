@@ -222,15 +222,17 @@ mod tests {
     }
 
     #[test]
-    fn test_malformed_numbers_silently_dropped() {
-        let err = tokenize("1-2-3").unwrap_err();
-        assert_eq!(
-            err,
-            JsonError::InvalidNumber {
-                value: "1-2-3".to_string(),
-                position: 0
-            }
-        );
+    fn test_malformed_numbers_rejected() {
+        for value in ["1-2-3", "1.2.3"] {
+            let err = tokenize(value).unwrap_err();
+            assert_eq!(
+                err,
+                JsonError::InvalidNumber {
+                    value: value.to_string(),
+                    position: 0
+                }
+            );
+        }
     }
 
     #[test]
