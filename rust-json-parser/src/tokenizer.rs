@@ -23,7 +23,6 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
         match ch {
             '"' => {
                 // todo: escape sequences, unicode, etc. is for later weeks
-                let start_position = pos;
                 chars.next();
 
                 let mut string_value = String::new();
@@ -39,9 +38,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                     chars.next();
                 }
                 if !terminated {
-                    return Err(JsonError::UnterminatedString {
-                        position: start_position,
-                    });
+                    return Err(JsonError::UnterminatedString { position: pos });
                 }
                 tokens.push(Token::String(string_value));
             }
@@ -59,7 +56,6 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                 chars.next();
             }
             '0'..='9' | '-' => {
-                let start_position = pos;
                 let mut number_str = String::new();
                 while let Some(&(_, next_ch)) = chars.peek() {
                     if next_ch.is_ascii_digit() || next_ch == '.' || next_ch == '-' {
@@ -74,12 +70,11 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                 } else {
                     return Err(JsonError::InvalidNumber {
                         value: number_str,
-                        position: start_position,
+                        position: pos,
                     });
                 }
             }
             't' | 'f' | 'n' => {
-                let start_position = pos;
                 let mut temp_str = String::new();
                 while let Some(&(_, next_ch)) = chars.peek() {
                     if next_ch.is_alphabetic() {
@@ -97,7 +92,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
                         return Err(JsonError::UnexpectedToken {
                             expected: "true, false, or null".to_string(),
                             found: temp_str,
-                            position: start_position,
+                            position: pos,
                         });
                     }
                 }
