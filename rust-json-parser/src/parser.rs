@@ -1,9 +1,10 @@
 use crate::error::{JsonError, Result};
-use crate::tokenizer::{Token, tokenize};
+use crate::tokenizer::{Token, Tokenizer};
 use crate::value::JsonValue;
 
 pub fn parse_json(input: &str) -> Result<JsonValue> {
-    let tokens = tokenize(input)?;
+    let mut tokenizer = Tokenizer::new(input);
+    let tokens = tokenizer.tokenize()?;
     if tokens.is_empty() {
         // TODO: update position for each error when
         // we move to a struct

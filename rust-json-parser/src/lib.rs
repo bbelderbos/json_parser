@@ -5,7 +5,8 @@ mod value;
 
 pub use error::{JsonError, Result};
 pub use parser::parse_json;
-pub use tokenizer::{Token, tokenize};
+//pub use tokenizer::{Token, Tokenizer};
+pub use tokenizer::Token;
 pub use value::JsonValue;
 
 #[cfg(test)]
