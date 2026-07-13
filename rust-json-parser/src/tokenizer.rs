@@ -55,9 +55,13 @@ impl Tokenizer {
                                 Some('n') => '\n',
                                 Some('r') => '\r',
                                 Some('t') => '\t',
+                                Some('u') => {
+                                    string_value.push(self.parse_unicode_escape()?);
+                                    continue;
+                                }
                                 Some(other) => {
                                     return Err(JsonError::InvalidEscape {
-                                        sequence: other.to_string(),
+                                        char: other,
                                         position: self.position,
                                     });
                                 }
@@ -161,6 +165,44 @@ impl Tokenizer {
 
     fn peek(&self) -> Option<char> {
         self.input.get(self.position).cloned()
+    }
+
+    fn parse_unicode_escape(&mut self) -> Result<char> {
+        self.advance(); // consume the 'u'
+        let mut unicode_str = String::new();
+        for _ in 0..4 {
+            if let Some(ch) = self.peek() {
+                if ch.is_ascii_hexdigit() {
+                    unicode_str.push(ch);
+                    self.advance();
+                } else {
+                    return Err(JsonError::InvalidUnicode {
+                        sequence: unicode_str,
+                        position: self.position,
+                    });
+                }
+            } else {
+                return Err(JsonError::InvalidUnicode {
+                    sequence: unicode_str,
+                    position: self.position,
+                });
+            }
+        }
+
+        let code_point =
+            u32::from_str_radix(&unicode_str, 16).map_err(|_| JsonError::InvalidUnicode {
+                sequence: unicode_str.clone(),
+                position: self.position,
+            })?;
+
+        if let Some(c) = std::char::from_u32(code_point) {
+            Ok(c)
+        } else {
+            Err(JsonError::InvalidUnicode {
+                sequence: unicode_str,
+                position: self.position,
+            })
+        }
     }
 }
 
@@ -521,5 +563,65 @@ mod tests {
         let mut tokenizer = Tokenizer::new(r#""\b\f""#);
         let tokens = tokenizer.tokenize().unwrap();
         assert_eq!(tokens, vec![Token::String("\u{0008}\u{000C}".to_string())]);
+    }
+
+    #[test]
+    fn test_unicode_escape_basic() {
+        // \u0041 is 'A'
+        let mut tokenizer = Tokenizer::new(r#""\u0041""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("A".to_string())]);
+    }
+
+    #[test]
+    fn test_unicode_escape_multiple() {
+        // \u0048\u0069 is "Hi"
+        let mut tokenizer = Tokenizer::new(r#""\u0048\u0069""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("Hi".to_string())]);
+    }
+
+    #[test]
+    fn test_unicode_escape_mixed() {
+        // Mix of regular chars and unicode escapes
+        let mut tokenizer = Tokenizer::new(r#""Hello \u0057orld""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("Hello World".to_string())]);
+    }
+
+    #[test]
+    fn test_unicode_escape_lowercase() {
+        // Lowercase hex digits should work too
+        let mut tokenizer = Tokenizer::new(r#""\u004a""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("J".to_string())]);
+    }
+
+    #[test]
+    fn test_invalid_escape_sequence() {
+        let mut tokenizer = Tokenizer::new(r#""\q""#);
+        let result = tokenizer.tokenize();
+        assert!(matches!(result, Err(JsonError::InvalidEscape { .. })));
+    }
+
+    #[test]
+    fn test_invalid_unicode_too_short() {
+        let mut tokenizer = Tokenizer::new(r#""\u004""#);
+        let result = tokenizer.tokenize();
+        assert!(matches!(result, Err(JsonError::InvalidUnicode { .. })));
+    }
+
+    #[test]
+    fn test_invalid_unicode_bad_hex() {
+        let mut tokenizer = Tokenizer::new(r#""\u00GG""#);
+        let result = tokenizer.tokenize();
+        assert!(matches!(result, Err(JsonError::InvalidUnicode { .. })));
+    }
+
+    #[test]
+    fn test_unterminated_string_with_escape() {
+        let mut tokenizer = Tokenizer::new(r#""hello\n"#);
+        let result = tokenizer.tokenize();
+        assert!(result.is_err());
     }
 }
