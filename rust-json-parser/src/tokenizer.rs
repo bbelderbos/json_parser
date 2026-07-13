@@ -32,7 +32,6 @@ impl Tokenizer {
         while let Some(ch) = self.peek() {
             match ch {
                 '"' => {
-                    // todo: escape sequences, unicode, etc. is for later weeks
                     let start = self.position;
                     self.advance(); // consume the opening quote
 
@@ -44,6 +43,31 @@ impl Tokenizer {
                             self.advance(); // consume the closing quote
                             terminated = true;
                             break;
+                        }
+                        if next_ch == '\\' {
+                            self.advance(); // consume the backslash
+                            let escaped_char = match self.peek() {
+                                Some('"') => '"',
+                                Some('\\') => '\\',
+                                Some('/') => '/',
+                                Some('b') => '\u{0008}',
+                                Some('f') => '\u{000C}',
+                                Some('n') => '\n',
+                                Some('r') => '\r',
+                                Some('t') => '\t',
+                                Some(other) => {
+                                    return Err(JsonError::InvalidEscape {
+                                        sequence: other.to_string(),
+                                        position: self.position,
+                                    });
+                                }
+                                None => {
+                                    return Err(JsonError::UnterminatedString { position: start });
+                                }
+                            };
+                            string_value.push(escaped_char);
+                            self.advance(); // consume the escaped char
+                            continue;
                         }
                         string_value.push(next_ch);
                         self.advance();
@@ -441,5 +465,61 @@ mod tests {
             }
             other => panic!("expected UnexpectedToken, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_escape_newline() {
+        let mut tokenizer = Tokenizer::new(r#""hello\nworld""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("hello\nworld".to_string())]);
+    }
+
+    #[test]
+    fn test_escape_tab() {
+        let mut tokenizer = Tokenizer::new(r#""col1\tcol2""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("col1\tcol2".to_string())]);
+    }
+
+    #[test]
+    fn test_escape_quote() {
+        let mut tokenizer = Tokenizer::new(r#""say \"hello\"""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("say \"hello\"".to_string())]);
+    }
+
+    #[test]
+    fn test_escape_backslash() {
+        let mut tokenizer = Tokenizer::new(r#""path\\to\\file""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("path\\to\\file".to_string())]);
+    }
+
+    #[test]
+    fn test_multiple_escapes() {
+        let mut tokenizer = Tokenizer::new(r#""a\nb\tc\"""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("a\nb\tc\"".to_string())]);
+    }
+
+    #[test]
+    fn test_escape_forward_slash() {
+        let mut tokenizer = Tokenizer::new(r#""a\/b""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("a/b".to_string())]);
+    }
+
+    #[test]
+    fn test_escape_carriage_return() {
+        let mut tokenizer = Tokenizer::new(r#""line\r\n""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("line\r\n".to_string())]);
+    }
+
+    #[test]
+    fn test_escape_backspace_formfeed() {
+        let mut tokenizer = Tokenizer::new(r#""\b\f""#);
+        let tokens = tokenizer.tokenize().unwrap();
+        assert_eq!(tokens, vec![Token::String("\u{0008}\u{000C}".to_string())]);
     }
 }
