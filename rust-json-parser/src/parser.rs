@@ -5,29 +5,24 @@ use crate::value::JsonValue;
 pub fn parse_json(input: &str) -> Result<JsonValue> {
     let mut tokenizer = Tokenizer::new(input);
     let tokens = tokenizer.tokenize()?;
-    if tokens.is_empty() {
-        // TODO: update position for each error when
-        // we move to a struct
-        return Err(JsonError::UnexpectedEndOfInput {
+    // TODO: update position for each error when we move to a struct
+    match tokens.as_slice() {
+        [] => Err(JsonError::UnexpectedEndOfInput {
             expected: "JSON value".to_string(),
             position: 0,
-        });
-    }
-    if tokens.len() > 1 {
-        return Err(JsonError::UnexpectedToken {
-            expected: "end of input".to_string(),
-            found: format!("{:?}", tokens[1]),
-            position: 0,
-        });
-    }
-    match &tokens[0] {
-        Token::Null => Ok(JsonValue::Null),
-        Token::Boolean(b) => Ok(JsonValue::Boolean(*b)),
-        Token::Number(n) => Ok(JsonValue::Number(*n)),
-        Token::String(s) => Ok(JsonValue::String(s.clone())),
-        _ => Err(JsonError::UnexpectedToken {
+        }),
+        [Token::Null] => Ok(JsonValue::Null),
+        [Token::Boolean(b)] => Ok(JsonValue::Boolean(*b)),
+        [Token::Number(n)] => Ok(JsonValue::Number(*n)),
+        [Token::String(s)] => Ok(JsonValue::String(s.clone())),
+        [token] => Err(JsonError::UnexpectedToken {
             expected: "Only boolean, number, string and null are supported for now".to_string(),
-            found: format!("{:?}", tokens[0]),
+            found: format!("{token:?}"),
+            position: 0,
+        }),
+        [_, second, ..] => Err(JsonError::UnexpectedToken {
+            expected: "end of input".to_string(),
+            found: format!("{second:?}"),
             position: 0,
         }),
     }
