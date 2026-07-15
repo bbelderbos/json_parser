@@ -254,9 +254,8 @@ mod tests {
 
     #[test]
     fn test_tokenizer_new() -> Result<()> {
-        let _tokenizer = Tokenizer::new("hello");
-        // Can't directly inspect private fields
-        // Verify by using the struct's methods
+        // Can't directly inspect private fields,
+        // so verify construction by using the struct's methods
         let mut t = Tokenizer::new("42");
         let tokens = t.tokenize()?;
         assert_eq!(tokens.len(), 1);
