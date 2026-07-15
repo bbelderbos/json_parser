@@ -67,6 +67,11 @@ impl JsonParser {
 mod tests {
     use super::*;
 
+    fn parse(input: &str) -> Result<JsonValue> {
+        let mut parser = JsonParser::new(input)?;
+        parser.parse()
+    }
+
     #[test]
     fn test_parser_creation() {
         let parser = JsonParser::new("42");
@@ -82,48 +87,39 @@ mod tests {
     #[test]
     fn test_parse_number() -> Result<()> {
         for (input, expected) in [("42", 42.0), ("42.5", 42.5), ("0", 0.0)] {
-            let mut parser = JsonParser::new(input)?;
-            assert_eq!(parser.parse()?, JsonValue::Number(expected));
+            assert_eq!(parse(input)?, JsonValue::Number(expected));
         }
         Ok(())
     }
 
     #[test]
     fn test_parse_string() -> Result<()> {
-        let mut parser = JsonParser::new(r#""hi""#)?;
-        assert_eq!(parser.parse()?, JsonValue::String("hi".to_string()));
+        assert_eq!(parse(r#""hi""#)?, JsonValue::String("hi".to_string()));
         Ok(())
     }
 
     #[test]
     fn test_parse_boolean_true() -> Result<()> {
-        let mut parser = JsonParser::new("true")?;
-        let value = parser.parse()?;
-        assert_eq!(value, JsonValue::Boolean(true));
+        assert_eq!(parse("true")?, JsonValue::Boolean(true));
         Ok(())
     }
 
     #[test]
     fn test_parse_null() -> Result<()> {
-        let mut parser = JsonParser::new("null")?;
-        let value = parser.parse()?;
-        assert_eq!(value, JsonValue::Null);
+        assert_eq!(parse("null")?, JsonValue::Null);
         Ok(())
     }
 
     #[test]
     fn test_parse_simple_string() -> Result<()> {
-        let mut parser = JsonParser::new(r#""hello""#)?;
-        let value = parser.parse()?;
-        assert_eq!(value, JsonValue::String("hello".to_string()));
+        assert_eq!(parse(r#""hello""#)?, JsonValue::String("hello".to_string()));
         Ok(())
     }
 
     #[test]
     fn test_parse_error_trailing_tokens() -> Result<()> {
         for input in ["42 true", "null null", r#""a" "b""#] {
-            let mut parser = JsonParser::new(input)?;
-            match parser.parse() {
+            match parse(input) {
                 Err(JsonError::UnexpectedToken { expected, .. }) => {
                     assert_eq!(expected, "end of input");
                 }
@@ -135,8 +131,7 @@ mod tests {
 
     #[test]
     fn test_parse_error_empty() -> Result<()> {
-        let mut parser = JsonParser::new("")?;
-        match parser.parse() {
+        match parse("") {
             Err(JsonError::UnexpectedEndOfInput { expected, position }) => {
                 assert_eq!(expected, "JSON value");
                 assert_eq!(position, 0);
@@ -148,60 +143,38 @@ mod tests {
 
     #[test]
     fn test_parse_negative_number() -> Result<()> {
-        let mut parser = JsonParser::new("-3.14")?;
-        let value = parser.parse()?;
-        assert_eq!(value, JsonValue::Number(-3.14));
+        assert_eq!(parse("-3.14")?, JsonValue::Number(-3.14));
         Ok(())
     }
 
     #[test]
     fn test_parse_boolean_false() -> Result<()> {
-        let mut parser = JsonParser::new("false")?;
-        let value = parser.parse()?;
-        assert_eq!(value, JsonValue::Boolean(false));
+        assert_eq!(parse("false")?, JsonValue::Boolean(false));
         Ok(())
     }
 
     #[test]
-    fn test_parse_empty_input() {
-        // Could fail at tokenization (no tokens) or parsing (empty token list)
-        // Either is acceptable - just verify it's an error
-        let result = match JsonParser::new("") {
-            Ok(mut parser) => parser.parse(),
-            Err(e) => Err(e),
-        };
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn test_parse_whitespace_only() {
-        let result = match JsonParser::new("   ") {
-            Ok(mut parser) => parser.parse(),
-            Err(e) => Err(e),
-        };
-        assert!(result.is_err());
+        assert!(parse("   ").is_err());
     }
 
     #[test]
     fn test_parse_string_with_newline() -> Result<()> {
-        let mut parser = JsonParser::new(r#""hello\nworld""#)?;
-        let value = parser.parse()?;
+        let value = parse(r#""hello\nworld""#)?;
         assert_eq!(value, JsonValue::String("hello\nworld".to_string()));
         Ok(())
     }
 
     #[test]
     fn test_parse_string_with_unicode() -> Result<()> {
-        let mut parser = JsonParser::new(r#""\u0048\u0065\u006c\u006c\u006f""#)?;
-        let value = parser.parse()?;
+        let value = parse(r#""\u0048\u0065\u006c\u006c\u006f""#)?;
         assert_eq!(value, JsonValue::String("Hello".to_string()));
         Ok(())
     }
 
     #[test]
     fn test_parse_complex_escapes() -> Result<()> {
-        let mut parser = JsonParser::new(r#""line1\nline2\t\"quoted\"\u0021""#)?;
-        let value = parser.parse()?;
+        let value = parse(r#""line1\nline2\t\"quoted\"\u0021""#)?;
         assert_eq!(
             value,
             JsonValue::String("line1\nline2\t\"quoted\"!".to_string())
@@ -211,16 +184,14 @@ mod tests {
 
     #[test]
     fn test_parse_string_with_tab() -> Result<()> {
-        let mut parser = JsonParser::new(r#""col1\tcol2""#)?;
-        let value = parser.parse()?;
+        let value = parse(r#""col1\tcol2""#)?;
         assert_eq!(value, JsonValue::String("col1\tcol2".to_string()));
         Ok(())
     }
 
     #[test]
     fn test_parse_string_with_quotes() -> Result<()> {
-        let mut parser = JsonParser::new(r#""say \"hi\"""#)?;
-        let value = parser.parse()?;
+        let value = parse(r#""say \"hi\"""#)?;
         assert_eq!(value, JsonValue::String("say \"hi\"".to_string()));
         Ok(())
     }
@@ -231,15 +202,10 @@ mod tests {
     }
 
     #[test]
-    fn test_parser_new_with_invalid_input() {}
-
-    #[test]
     fn test_parse_with_whitespace() -> Result<()> {
-        let mut parser = JsonParser::new("  42  ")?;
-        assert_eq!(parser.parse()?, JsonValue::Number(42.0));
+        assert_eq!(parse("  42  ")?, JsonValue::Number(42.0));
 
-        let mut parser = JsonParser::new("\n\ttrue\n")?;
-        assert_eq!(parser.parse()?, JsonValue::Boolean(true));
+        assert_eq!(parse("\n\ttrue\n")?, JsonValue::Boolean(true));
         Ok(())
     }
 }
