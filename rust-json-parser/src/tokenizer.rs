@@ -173,25 +173,19 @@ impl Tokenizer {
     }
 
     fn read_hex_digits(&mut self, count: usize) -> Result<u32> {
-        let mut hex = String::new();
+        let start = self.position;
+        let mut value = 0;
         for _ in 0..count {
-            match self.peek() {
-                Some(ch) if ch.is_ascii_hexdigit() => {
-                    hex.push(ch);
-                    self.advance();
-                }
-                _ => {
-                    return Err(JsonError::InvalidUnicode {
-                        sequence: hex,
-                        position: self.position,
-                    });
-                }
-            }
+            let Some(digit) = self.peek().and_then(|ch| ch.to_digit(16)) else {
+                return Err(JsonError::InvalidUnicode {
+                    sequence: self.input[start..self.position].iter().collect(),
+                    position: self.position,
+                });
+            };
+            value = value * 16 + digit;
+            self.advance();
         }
-        u32::from_str_radix(&hex, 16).map_err(|_| JsonError::InvalidUnicode {
-            sequence: hex.clone(),
-            position: self.position,
-        })
+        Ok(value)
     }
 
     fn parse_unicode_escape(&mut self) -> Result<char> {
