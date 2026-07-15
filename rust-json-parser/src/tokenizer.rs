@@ -259,8 +259,6 @@ fn combine_surrogates(high: u32, low: u32) -> u32 {
 mod tests {
     use super::*;
 
-    type Result<T> = super::Result<T>;
-
     fn tokenize(input: &str) -> Result<Vec<Token>> {
         let mut tokenizer = Tokenizer::new(input);
         tokenizer.tokenize()
