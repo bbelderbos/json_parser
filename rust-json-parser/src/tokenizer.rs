@@ -723,6 +723,27 @@ mod tests {
     }
 
     #[test]
+    fn test_invalid_unicode_reports_digits_read_so_far() {
+        // The reported sequence is the raw partial digits, so leading zeros survive
+        for (input, sequence, position) in [
+            (r#""\u00GG""#, "00", 5),
+            (r#""\uGG""#, "", 3),
+            (r#""\u004""#, "004", 6),
+            (r#""\x4""#, "4", 4),
+            (r#""\xGG""#, "", 3),
+        ] {
+            assert_eq!(
+                tokenize(input).unwrap_err(),
+                JsonError::InvalidUnicode {
+                    sequence: sequence.to_string(),
+                    position,
+                },
+                "for input {input}"
+            );
+        }
+    }
+
+    #[test]
     fn test_invalid_unicode_bad_hex() {
         let result = tokenize(r#""\u00GG""#);
         assert!(matches!(result, Err(JsonError::InvalidUnicode { .. })));
