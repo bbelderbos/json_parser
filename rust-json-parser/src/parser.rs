@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_parse_negative_number() -> Result<()> {
-        assert_eq!(parse("-3.14")?, JsonValue::Number(-3.14));
+        assert_eq!(parse("-3.25")?, JsonValue::Number(-3.25));
         Ok(())
     }
 
