@@ -1,6 +1,4 @@
-use rust_json_parser::JsonParser;
-use rust_json_parser::JsonValue;
-use rust_json_parser::Result;
+use rust_json_parser::parse;
 
 fn main() {
     let inputs = [
@@ -9,15 +7,10 @@ fn main() {
         r#""missing end quote"#,
     ];
 
-    fn parse_json(input: &str) -> Result<JsonValue> {
-        let mut parser = JsonParser::new(input)?;
-        parser.parse()
-    }
-
     for input in inputs {
         println!("Input: {input}");
 
-        match parse_json(input) {
+        match parse(input) {
             Ok(value) => println!("Parsed: {value:?}"),
             Err(error) => println!("Error: {error}"),
         }

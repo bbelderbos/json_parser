@@ -67,11 +67,7 @@ impl JsonParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn parse(input: &str) -> Result<JsonValue> {
-        let mut parser = JsonParser::new(input)?;
-        parser.parse()
-    }
+    use crate::parse;
 
     #[test]
     fn test_parser_creation() {
