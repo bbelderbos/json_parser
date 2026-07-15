@@ -33,12 +33,13 @@ impl JsonParser {
 
     pub fn parse(&mut self) -> Result<JsonValue> {
         let value = self.parse_value()?;
+        let position = self.position;
         match self.advance() {
             None => Ok(value),
             Some(token) => Err(JsonError::UnexpectedToken {
                 expected: "end of input".to_string(),
                 found: format!("{token:?}"),
-                position: self.position,
+                position,
             }),
         }
     }
