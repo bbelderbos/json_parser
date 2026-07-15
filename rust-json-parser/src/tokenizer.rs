@@ -119,6 +119,7 @@ impl Tokenizer {
                     }
                 }
                 't' | 'f' | 'n' => {
+                    let start = self.position;
                     let mut temp_str = String::new();
                     while let Some(next_ch) = self.peek() {
                         if next_ch.is_alphabetic() {
@@ -136,7 +137,7 @@ impl Tokenizer {
                             return Err(JsonError::UnexpectedToken {
                                 expected: "true, false, or null".to_string(),
                                 found: temp_str,
-                                position: self.position,
+                                position: start,
                             });
                         }
                     }
