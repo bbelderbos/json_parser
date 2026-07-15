@@ -31,60 +31,7 @@ impl Tokenizer {
 
         while let Some(ch) = self.peek() {
             match ch {
-                '"' => {
-                    let start = self.position;
-                    self.advance(); // consume the opening quote
-
-                    let mut string_value = String::new();
-                    let mut terminated = false;
-
-                    while let Some(next_ch) = self.peek() {
-                        if next_ch == '"' {
-                            self.advance(); // consume the closing quote
-                            terminated = true;
-                            break;
-                        }
-                        if next_ch == '\\' {
-                            self.advance(); // consume the backslash
-                            let escaped_char = match self.peek() {
-                                Some('"') => '"',
-                                Some('\\') => '\\',
-                                Some('/') => '/',
-                                Some('b') => '\u{0008}',
-                                Some('f') => '\u{000C}',
-                                Some('n') => '\n',
-                                Some('r') => '\r',
-                                Some('t') => '\t',
-                                Some('u') => {
-                                    string_value.push(self.parse_unicode_escape()?);
-                                    continue;
-                                }
-                                Some('x') => {
-                                    string_value.push(self.parse_hex_escape()?);
-                                    continue;
-                                }
-                                Some(other) => {
-                                    return Err(JsonError::InvalidEscape {
-                                        char: other,
-                                        position: self.position,
-                                    });
-                                }
-                                None => {
-                                    return Err(JsonError::UnterminatedString { position: start });
-                                }
-                            };
-                            string_value.push(escaped_char);
-                            self.advance(); // consume the escaped char
-                            continue;
-                        }
-                        string_value.push(next_ch);
-                        self.advance();
-                    }
-                    if !terminated {
-                        return Err(JsonError::UnterminatedString { position: start });
-                    }
-                    tokens.push(Token::String(string_value));
-                }
+                '"' => tokens.push(Token::String(self.read_string()?)),
                 '{' | '}' | '[' | ']' | ',' | ':' => {
                     let token = match ch {
                         '{' => Token::LeftBrace,
@@ -98,52 +45,9 @@ impl Tokenizer {
                     tokens.push(token);
                     self.advance(); // consume the character
                 }
-                '0'..='9' | '-' => {
-                    let start = self.position;
-                    let mut number_str = String::new();
-                    while let Some(next_ch) = self.peek() {
-                        if next_ch.is_ascii_digit() || next_ch == '.' || next_ch == '-' {
-                            number_str.push(next_ch);
-                            self.advance();
-                        } else {
-                            break;
-                        }
-                    }
-                    if let Ok(number) = number_str.parse::<f64>() {
-                        tokens.push(Token::Number(number));
-                    } else {
-                        return Err(JsonError::InvalidNumber {
-                            value: number_str,
-                            position: start,
-                        });
-                    }
-                }
-                't' | 'f' | 'n' => {
-                    let start = self.position;
-                    let mut temp_str = String::new();
-                    while let Some(next_ch) = self.peek() {
-                        if next_ch.is_alphabetic() {
-                            temp_str.push(next_ch);
-                            self.advance();
-                        } else {
-                            break;
-                        }
-                    }
-                    match temp_str.as_str() {
-                        "true" => tokens.push(Token::Boolean(true)),
-                        "false" => tokens.push(Token::Boolean(false)),
-                        "null" => tokens.push(Token::Null),
-                        _ => {
-                            return Err(JsonError::UnexpectedToken {
-                                expected: "true, false, or null".to_string(),
-                                found: temp_str,
-                                position: start,
-                            });
-                        }
-                    }
-                }
+                '0'..='9' | '-' => tokens.push(self.read_number()?),
+                't' | 'f' | 'n' => tokens.push(self.read_literal()?),
                 ' ' | '\n' | '\r' | '\t' => {
-                    // expected whitespace, skip it
                     self.advance();
                 }
                 _ => {
@@ -156,6 +60,96 @@ impl Tokenizer {
             }
         }
         Ok(tokens)
+    }
+
+    fn take_while(&mut self, predicate: impl Fn(char) -> bool) -> String {
+        let mut taken = String::new();
+        while let Some(ch) = self.peek().filter(|&ch| predicate(ch)) {
+            taken.push(ch);
+            self.advance();
+        }
+        taken
+    }
+
+    fn read_string(&mut self) -> Result<String> {
+        let start = self.position;
+        self.advance(); // consume the opening quote
+
+        let mut value = String::new();
+        loop {
+            match self.peek() {
+                None => return Err(JsonError::UnterminatedString { position: start }),
+                Some('"') => {
+                    self.advance(); // consume the closing quote
+                    return Ok(value);
+                }
+                Some('\\') => {
+                    self.advance(); // consume the backslash
+                    value.push(self.read_escape(start)?);
+                }
+                Some(ch) => {
+                    value.push(ch);
+                    self.advance();
+                }
+            }
+        }
+    }
+
+    fn read_escape(&mut self, string_start: usize) -> Result<char> {
+        let Some(ch) = self.peek() else {
+            return Err(JsonError::UnterminatedString {
+                position: string_start,
+            });
+        };
+        let escaped = match ch {
+            '"' => '"',
+            '\\' => '\\',
+            '/' => '/',
+            'b' => '\u{0008}',
+            'f' => '\u{000C}',
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            'u' => return self.parse_unicode_escape(),
+            'x' => return self.parse_hex_escape(),
+            other => {
+                return Err(JsonError::InvalidEscape {
+                    char: other,
+                    position: self.position,
+                });
+            }
+        };
+        self.advance(); // consume the escaped char
+        Ok(escaped)
+    }
+
+    fn read_number(&mut self) -> Result<Token> {
+        let start = self.position;
+        let number_str = self.take_while(|ch| ch.is_ascii_digit() || ch == '.' || ch == '-');
+
+        match number_str.parse::<f64>() {
+            Ok(number) => Ok(Token::Number(number)),
+            Err(_) => Err(JsonError::InvalidNumber {
+                value: number_str,
+                position: start,
+            }),
+        }
+    }
+
+    fn read_literal(&mut self) -> Result<Token> {
+        let start = self.position;
+        let word = self.take_while(char::is_alphabetic);
+
+        match word.as_str() {
+            "true" => Ok(Token::Boolean(true)),
+            "false" => Ok(Token::Boolean(false)),
+            "null" => Ok(Token::Null),
+            _ => Err(JsonError::UnexpectedToken {
+                expected: "true, false, or null".to_string(),
+                found: word,
+                position: start,
+            }),
+        }
     }
 
     fn advance(&mut self) -> Option<char> {
