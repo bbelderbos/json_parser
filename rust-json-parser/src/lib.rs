@@ -4,14 +4,18 @@ mod tokenizer;
 mod value;
 
 pub use error::{JsonError, Result};
-pub use parser::parse_json;
-//pub use tokenizer::{Token, Tokenizer};
+pub use parser::JsonParser;
 pub use tokenizer::Token;
 pub use value::JsonValue;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn parse_json(input: &str) -> Result<JsonValue> {
+        let mut parser = JsonParser::new(input)?;
+        parser.parse()
+    }
 
     #[test]
     fn test_integration() -> Result<()> {
