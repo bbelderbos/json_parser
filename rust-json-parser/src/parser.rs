@@ -55,6 +55,8 @@ impl JsonParser {
             Some(Token::Boolean(b)) => Ok(JsonValue::Boolean(b)),
             Some(Token::Number(n)) => Ok(JsonValue::Number(n)),
             Some(Token::String(s)) => Ok(JsonValue::String(s)),
+            Some(Token::LeftBracket) => Ok(self.parse_array()?),
+            //Some(Token::LeftBrace) => parse_object(self),
             Some(token) => Err(JsonError::UnexpectedToken {
                 expected: "boolean, number, string or null".to_string(),
                 found: format!("{token:?}"),
@@ -62,6 +64,46 @@ impl JsonParser {
             }),
         }
     }
+
+    fn parse_array(&mut self) -> Result<JsonValue> {
+        let mut items = Vec::with_capacity(4);
+        match self.advance() {
+            Some(Token::RightBracket) => return Ok(JsonValue::Array(items)),
+            Some(_) => {
+                self.position -= 1; // Unconsume the token
+                items.push(self.parse_value()?);
+            }
+            None => {
+                return Err(JsonError::UnexpectedEndOfInput {
+                    expected: "array value or ']'".to_string(),
+                    position: self.position,
+                })
+            }
+        }
+        loop {
+            match self.advance() {
+                Some(Token::RightBracket) => return Ok(JsonValue::Array(items)),
+                Some(Token::Comma) => {
+                    items.push(self.parse_value()?);
+                }
+                Some(token) => {
+                    return Err(JsonError::UnexpectedToken {
+                        expected: "',' or ']'".to_string(),
+                        found: format!("{token:?}"),
+                        position: self.position - 1,
+                    })
+                }
+                None => {
+                    return Err(JsonError::UnexpectedEndOfInput {
+                        expected: "',' or ']'".to_string(),
+                        position: self.position,
+                    })
+                }
+            }
+        }
+    }
+
+    //fn parse_object(&mut self) -> Result<JsonValue> {}
 }
 
 #[cfg(test)]
@@ -203,6 +245,49 @@ mod tests {
         assert_eq!(parse("  42  ")?, JsonValue::Number(42.0));
 
         assert_eq!(parse("\n\ttrue\n")?, JsonValue::Boolean(true));
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_empty_array() -> Result<()> {
+        let mut parser = JsonParser::new("[]")?;
+        let value = parser.parse()?;
+        assert_eq!(value, JsonValue::Array(vec![]));
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_array_single() -> Result<()> {
+        let mut parser = JsonParser::new("[1]")?;
+        let value = parser.parse()?;
+        assert_eq!(value, JsonValue::Array(vec![JsonValue::Number(1.0)]));
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_array_multiple() -> Result<()> {
+        let mut parser = JsonParser::new("[1, 2, 3]")?;
+        let value = parser.parse()?;
+        let expected = JsonValue::Array(vec![
+            JsonValue::Number(1.0),
+            JsonValue::Number(2.0),
+            JsonValue::Number(3.0),
+        ]);
+        assert_eq!(value, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_array_mixed_types() -> Result<()> {
+        let mut parser = JsonParser::new(r#"[1, "two", true, null]"#)?;
+        let value = parser.parse()?;
+        let expected = JsonValue::Array(vec![
+            JsonValue::Number(1.0),
+            JsonValue::String("two".to_string()),
+            JsonValue::Boolean(true),
+            JsonValue::Null,
+        ]);
+        assert_eq!(value, expected);
         Ok(())
     }
 }
