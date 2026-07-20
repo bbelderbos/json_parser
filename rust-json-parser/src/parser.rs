@@ -59,7 +59,7 @@ impl JsonParser {
             Some(Token::LeftBracket) => Ok(self.parse_array()?),
             Some(Token::LeftBrace) => Ok(self.parse_object()?),
             Some(token) => Err(JsonError::UnexpectedToken {
-                expected: "boolean, number, string or null".to_string(),
+                expected: "null, boolean, number, string, array, or object".to_string(),
                 found: format!("{token:?}"),
                 position,
             }),
