@@ -290,4 +290,21 @@ mod tests {
         assert_eq!(value, expected);
         Ok(())
     }
+
+    #[test]
+    fn test_array_accessor() -> Result<()> {
+        let mut parser = JsonParser::new("[1, 2, 3]")?;
+        let value = parser.parse()?;
+        assert_eq!(value.as_array().map(Vec::len), Some(3));
+        Ok(())
+    }
+
+    #[test]
+    fn test_array_get_index() -> Result<()> {
+        let mut parser = JsonParser::new("[10, 20, 30]")?;
+        let value = parser.parse()?;
+        assert_eq!(value.get_index(1), Some(&JsonValue::Number(20.0)));
+        assert_eq!(value.get_index(5), None);
+        Ok(())
+    }
 }
