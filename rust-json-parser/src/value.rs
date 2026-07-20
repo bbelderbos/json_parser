@@ -88,8 +88,8 @@ impl fmt::Display for JsonValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::Result;
     use crate::JsonParser;
+    use crate::error::Result;
 
     #[test]
     fn test_json_value_equality() {

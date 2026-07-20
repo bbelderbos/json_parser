@@ -1,4 +1,4 @@
-use rust_json_parser::{parse, Result};
+use rust_json_parser::{Result, parse};
 
 fn main() -> Result<()> {
     let json = r#"{
