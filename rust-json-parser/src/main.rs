@@ -27,7 +27,9 @@ fn main() -> Result<()> {
         .get("metadata")
         .expect("missing \"metadata\" field")
         .get("author")
-        .expect("missing \"author\" field");
+        .expect("missing \"author\" field")
+        .as_str()
+        .expect("\"author\" should be a string");
 
     println!("name: {name}");
     println!("features: {features:?}");
