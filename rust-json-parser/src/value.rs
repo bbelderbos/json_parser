@@ -63,23 +63,51 @@ impl JsonValue {
     }
 }
 
+fn write_json_string(f: &mut fmt::Formatter<'_>, s: &str) -> fmt::Result {
+    write!(f, "\"")?;
+    for c in s.chars() {
+        match c {
+            '"' => write!(f, "\\\"")?,
+            '\\' => write!(f, "\\\\")?,
+            '\n' => write!(f, "\\n")?,
+            '\r' => write!(f, "\\r")?,
+            '\t' => write!(f, "\\t")?,
+            '\u{08}' => write!(f, "\\b")?,
+            '\u{0C}' => write!(f, "\\f")?,
+            c if (c as u32) < 0x20 => write!(f, "\\u{:04x}", c as u32)?,
+            c => write!(f, "{c}")?,
+        }
+    }
+    write!(f, "\"")
+}
+
 impl fmt::Display for JsonValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             JsonValue::Null => write!(f, "null"),
             JsonValue::Boolean(b) => write!(f, "{b}"),
             JsonValue::Number(n) => write!(f, "{n}"),
-            JsonValue::String(s) => write!(f, "\"{}\"", s.escape_default()),
+            JsonValue::String(s) => write_json_string(f, s),
             JsonValue::Array(arr) => {
-                let elements: Vec<String> = arr.iter().map(|v| v.to_string()).collect();
-                write!(f, "[{}]", elements.join(","))
+                write!(f, "[")?;
+                for (i, v) in arr.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ",")?;
+                    }
+                    write!(f, "{v}")?;
+                }
+                write!(f, "]")
             }
             JsonValue::Object(obj) => {
-                let elements: Vec<String> = obj
-                    .iter()
-                    .map(|(k, v)| format!("\"{}\":{}", k.escape_default(), v))
-                    .collect();
-                write!(f, "{{{}}}", elements.join(","))
+                write!(f, "{{")?;
+                for (i, (k, v)) in obj.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ",")?;
+                    }
+                    write_json_string(f, k)?;
+                    write!(f, ":{v}")?;
+                }
+                write!(f, "}}")
             }
         }
     }
@@ -172,6 +200,12 @@ mod tests {
     fn test_display_escape_quotes() {
         let value = JsonValue::String("say \"hi\"".to_string());
         assert_eq!(value.to_string(), "\"say \\\"hi\\\"\"");
+    }
+
+    #[test]
+    fn test_display_escape_control_chars() {
+        let value = JsonValue::String("\u{01}\t\u{08}".to_string());
+        assert_eq!(value.to_string(), "\"\\u0001\\t\\b\"");
     }
 
     #[test]
