@@ -238,10 +238,14 @@ mod tests {
 
     #[test]
     fn test_parse_error_trailing_tokens() -> Result<()> {
+        // position points at the trailing token (index 1), not one past it
         for input in ["42 true", "null null", r#""a" "b""#] {
             match parse(input) {
-                Err(JsonError::UnexpectedToken { expected, .. }) => {
+                Err(JsonError::UnexpectedToken {
+                    expected, position, ..
+                }) => {
                     assert_eq!(expected, "end of input");
+                    assert_eq!(position, 1, "for input {input:?}");
                 }
                 _ => panic!("Expected UnexpectedToken error for {input:?}"),
             }
