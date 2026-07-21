@@ -30,21 +30,13 @@ impl Tokenizer {
         let mut tokens = Vec::with_capacity(self.input.len() / 4);
 
         while let Some(ch) = self.peek() {
+            if let Some(token) = single_char_token(ch) {
+                tokens.push(token);
+                self.advance(); // consume the character
+                continue;
+            }
             match ch {
                 '"' => tokens.push(Token::String(self.read_string()?)),
-                '{' | '}' | '[' | ']' | ',' | ':' => {
-                    let token = match ch {
-                        '{' => Token::LeftBrace,
-                        '}' => Token::RightBrace,
-                        '[' => Token::LeftBracket,
-                        ']' => Token::RightBracket,
-                        ',' => Token::Comma,
-                        ':' => Token::Colon,
-                        _ => unreachable!(),
-                    };
-                    tokens.push(token);
-                    self.advance(); // consume the character
-                }
                 '0'..='9' | '-' => tokens.push(self.read_number()?),
                 't' | 'f' | 'n' => tokens.push(self.read_literal()?),
                 ' ' | '\n' | '\r' | '\t' => {
@@ -228,6 +220,18 @@ impl Tokenizer {
         self.advance(); // consume the 'x'
         let byte = self.read_hex_digits(2)?;
         Ok(char::from(byte as u8))
+    }
+}
+
+fn single_char_token(ch: char) -> Option<Token> {
+    match ch {
+        '{' => Some(Token::LeftBrace),
+        '}' => Some(Token::RightBrace),
+        '[' => Some(Token::LeftBracket),
+        ']' => Some(Token::RightBracket),
+        ',' => Some(Token::Comma),
+        ':' => Some(Token::Colon),
+        _ => None,
     }
 }
 
