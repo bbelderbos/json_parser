@@ -1,4 +1,4 @@
-use rust_json_parser::parse_json;
+use rust_json_parser::parse;
 
 fn main() {
     let inputs = [
@@ -9,7 +9,8 @@ fn main() {
 
     for input in inputs {
         println!("Input: {input}");
-        match parse_json(input) {
+
+        match parse(input) {
             Ok(value) => println!("Parsed: {value:?}"),
             Err(error) => println!("Error: {error}"),
         }
