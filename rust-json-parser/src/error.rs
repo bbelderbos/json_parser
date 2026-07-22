@@ -20,6 +20,14 @@ pub enum JsonError {
     UnterminatedString {
         position: usize,
     },
+    InvalidEscape {
+        char: char,
+        position: usize,
+    },
+    InvalidUnicode {
+        sequence: String,
+        position: usize,
+    },
 }
 
 impl fmt::Display for JsonError {
@@ -46,6 +54,18 @@ impl fmt::Display for JsonError {
             }
             JsonError::UnterminatedString { position } => {
                 write!(f, "Unterminated string starting at position {position}")
+            }
+            JsonError::InvalidEscape { char, position } => {
+                write!(
+                    f,
+                    "Invalid escape character '{char}' at position {position}"
+                )
+            }
+            JsonError::InvalidUnicode { sequence, position } => {
+                write!(
+                    f,
+                    "Invalid unicode escape sequence '{sequence}' at position {position}"
+                )
             }
         }
     }
@@ -87,10 +107,22 @@ mod tests {
             position: 0,
         };
 
+        let unterminated_string_error = JsonError::UnterminatedString { position: 15 };
+        let invalid_escape_error = JsonError::InvalidEscape {
+            char: 'q',
+            position: 20,
+        };
+        let invalid_unicode_error = JsonError::InvalidUnicode {
+            sequence: "\\uZZZZ".to_string(),
+            position: 25,
+        };
         // All variants should be Debug-printable
         assert!(!format!("{:?}", token_error).is_empty());
         assert!(!format!("{:?}", eof_error).is_empty());
         assert!(!format!("{:?}", num_error).is_empty());
+        assert!(!format!("{:?}", unterminated_string_error).is_empty());
+        assert!(!format!("{:?}", invalid_escape_error).is_empty());
+        assert!(!format!("{:?}", invalid_unicode_error).is_empty());
     }
 
     #[test]
@@ -105,5 +137,35 @@ mod tests {
         assert!(message.contains("position 0"));
         assert!(message.contains("valid JSON"));
         assert!(message.contains("@"));
+    }
+
+    #[test]
+    fn test_invalid_escape_display() {
+        let err = JsonError::InvalidEscape {
+            char: 'q',
+            position: 5,
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("escape"));
+        assert!(msg.contains("q"));
+    }
+
+    #[test]
+    fn test_invalid_unicode_display() {
+        let err = JsonError::InvalidUnicode {
+            sequence: "00GG".to_string(),
+            position: 3,
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("unicode") || msg.contains("Unicode"));
+    }
+
+    #[test]
+    fn test_error_is_std_error() {
+        let err = JsonError::InvalidEscape {
+            char: 'x',
+            position: 0,
+        };
+        let _: &dyn std::error::Error = &err; // Must implement Error trait
     }
 }

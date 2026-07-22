@@ -14,110 +14,263 @@ pub enum Token {
     Null,
 }
 
-pub fn tokenize(input: &str) -> Result<Vec<Token>> {
-    let mut tokens = Vec::with_capacity(input.len() / 4);
+pub struct Tokenizer {
+    input: Vec<char>,
+    position: usize,
+}
 
-    let mut chars = input.char_indices().peekable();
+impl Tokenizer {
+    pub fn new(input: &str) -> Self {
+        Self {
+            input: input.chars().collect(),
+            position: 0,
+        }
+    }
+    pub fn tokenize(&mut self) -> Result<Vec<Token>> {
+        let mut tokens = Vec::with_capacity(self.input.len() / 4);
 
-    while let Some(&(pos, ch)) = chars.peek() {
-        match ch {
-            '"' => {
-                // todo: escape sequences, unicode, etc. is for later weeks
-                chars.next();
-
-                let mut string_value = String::new();
-                let mut terminated = false;
-
-                while let Some(&(_, next_ch)) = chars.peek() {
-                    if next_ch == '"' {
-                        chars.next();
-                        terminated = true;
-                        break;
-                    }
-                    string_value.push(next_ch);
-                    chars.next();
-                }
-                if !terminated {
-                    return Err(JsonError::UnterminatedString { position: pos });
-                }
-                tokens.push(Token::String(string_value));
-            }
-            '{' | '}' | '[' | ']' | ',' | ':' => {
-                let token = match ch {
-                    '{' => Token::LeftBrace,
-                    '}' => Token::RightBrace,
-                    '[' => Token::LeftBracket,
-                    ']' => Token::RightBracket,
-                    ',' => Token::Comma,
-                    ':' => Token::Colon,
-                    _ => unreachable!(),
-                };
+        while let Some(ch) = self.peek() {
+            if let Some(token) = single_char_token(ch) {
                 tokens.push(token);
-                chars.next();
+                self.advance(); // consume the character
+                continue;
             }
-            '0'..='9' | '-' => {
-                let mut number_str = String::new();
-                while let Some(&(_, next_ch)) = chars.peek() {
-                    if next_ch.is_ascii_digit() || next_ch == '.' || next_ch == '-' {
-                        number_str.push(next_ch);
-                        chars.next();
-                    } else {
-                        break;
-                    }
+            match ch {
+                '"' => tokens.push(Token::String(self.read_string()?)),
+                '0'..='9' | '-' => tokens.push(self.read_number()?),
+                't' | 'f' | 'n' => tokens.push(self.read_literal()?),
+                ' ' | '\n' | '\r' | '\t' => {
+                    self.advance();
                 }
-                if let Ok(number) = number_str.parse::<f64>() {
-                    tokens.push(Token::Number(number));
-                } else {
-                    return Err(JsonError::InvalidNumber {
-                        value: number_str,
-                        position: pos,
+                _ => {
+                    return Err(JsonError::UnexpectedToken {
+                        expected: "valid JSON token".to_string(),
+                        found: ch.to_string(),
+                        position: self.position,
                     });
                 }
             }
-            't' | 'f' | 'n' => {
-                let mut temp_str = String::new();
-                while let Some(&(_, next_ch)) = chars.peek() {
-                    if next_ch.is_alphabetic() {
-                        temp_str.push(next_ch);
-                        chars.next();
-                    } else {
-                        break;
-                    }
+        }
+        Ok(tokens)
+    }
+
+    fn take_while(&mut self, predicate: impl Fn(char) -> bool) -> String {
+        let mut taken = String::new();
+        while let Some(ch) = self.peek().filter(|&ch| predicate(ch)) {
+            taken.push(ch);
+            self.advance();
+        }
+        taken
+    }
+
+    fn read_string(&mut self) -> Result<String> {
+        let start = self.position;
+        self.advance(); // consume the opening quote
+
+        let mut value = String::new();
+        loop {
+            match self.peek() {
+                None => return Err(JsonError::UnterminatedString { position: start }),
+                Some('"') => {
+                    self.advance(); // consume the closing quote
+                    return Ok(value);
                 }
-                match temp_str.as_str() {
-                    "true" => tokens.push(Token::Boolean(true)),
-                    "false" => tokens.push(Token::Boolean(false)),
-                    "null" => tokens.push(Token::Null),
-                    _ => {
-                        return Err(JsonError::UnexpectedToken {
-                            expected: "true, false, or null".to_string(),
-                            found: temp_str,
-                            position: pos,
-                        });
-                    }
+                Some('\\') => {
+                    self.advance(); // consume the backslash
+                    value.push(self.read_escape(start)?);
                 }
-            }
-            ' ' | '\n' | '\r' | '\t' => {
-                // expected whitespace, skip it
-                chars.next();
-            }
-            _ => {
-                return Err(JsonError::UnexpectedToken {
-                    expected: "valid JSON token".to_string(),
-                    found: ch.to_string(),
-                    position: pos,
-                });
+                Some(ch) => {
+                    value.push(ch);
+                    self.advance();
+                }
             }
         }
     }
-    Ok(tokens)
+
+    fn read_escape(&mut self, string_start: usize) -> Result<char> {
+        let Some(ch) = self.peek() else {
+            return Err(JsonError::UnterminatedString {
+                position: string_start,
+            });
+        };
+        let escaped = match ch {
+            '"' => '"',
+            '\\' => '\\',
+            '/' => '/',
+            'b' => '\u{0008}',
+            'f' => '\u{000C}',
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            'u' => return self.parse_unicode_escape(),
+            'x' => return self.parse_hex_escape(),
+            other => {
+                return Err(JsonError::InvalidEscape {
+                    char: other,
+                    position: self.position,
+                });
+            }
+        };
+        self.advance(); // consume the escaped char
+        Ok(escaped)
+    }
+
+    fn read_number(&mut self) -> Result<Token> {
+        let start = self.position;
+        let number_str = self.take_while(|ch| ch.is_ascii_digit() || ch == '.' || ch == '-');
+
+        match number_str.parse::<f64>() {
+            Ok(number) => Ok(Token::Number(number)),
+            Err(_) => Err(JsonError::InvalidNumber {
+                value: number_str,
+                position: start,
+            }),
+        }
+    }
+
+    fn read_literal(&mut self) -> Result<Token> {
+        let start = self.position;
+        let word = self.take_while(char::is_alphabetic);
+
+        match word.as_str() {
+            "true" => Ok(Token::Boolean(true)),
+            "false" => Ok(Token::Boolean(false)),
+            "null" => Ok(Token::Null),
+            _ => Err(JsonError::UnexpectedToken {
+                expected: "true, false, or null".to_string(),
+                found: word,
+                position: start,
+            }),
+        }
+    }
+
+    fn advance(&mut self) -> Option<char> {
+        if self.position < self.input.len() {
+            let ch = self.input[self.position];
+            self.position += 1;
+            Some(ch)
+        } else {
+            None
+        }
+    }
+
+    fn peek(&self) -> Option<char> {
+        self.input.get(self.position).cloned()
+    }
+
+    fn read_hex_digits(&mut self, count: usize) -> Result<u32> {
+        let start = self.position;
+        let mut value = 0;
+        for _ in 0..count {
+            let Some(digit) = self.peek().and_then(|ch| ch.to_digit(16)) else {
+                return Err(JsonError::InvalidUnicode {
+                    sequence: self.input[start..self.position].iter().collect(),
+                    position: self.position,
+                });
+            };
+            value = value * 16 + digit;
+            self.advance();
+        }
+        Ok(value)
+    }
+
+    fn parse_unicode_escape(&mut self) -> Result<char> {
+        self.advance(); // consume the 'u'
+        let first = self.read_hex_digits(4)?;
+
+        let code_point = if is_high_surrogate(first) {
+            let low = self.parse_low_surrogate(first)?;
+            combine_surrogates(first, low)
+        } else {
+            first
+        };
+
+        std::char::from_u32(code_point).ok_or(JsonError::InvalidUnicode {
+            sequence: format!("{code_point:04X}"),
+            position: self.position,
+        })
+    }
+
+    fn parse_low_surrogate(&mut self, high: u32) -> Result<u32> {
+        let position = self.position;
+        let invalid = || JsonError::InvalidUnicode {
+            sequence: format!("{high:04X}"),
+            position,
+        };
+
+        if self.peek() != Some('\\') {
+            return Err(invalid());
+        }
+        self.advance();
+
+        if self.peek() != Some('u') {
+            return Err(invalid());
+        }
+        self.advance();
+
+        let low = self.read_hex_digits(4)?;
+        if is_low_surrogate(low) {
+            Ok(low)
+        } else {
+            Err(invalid())
+        }
+    }
+
+    fn parse_hex_escape(&mut self) -> Result<char> {
+        self.advance(); // consume the 'x'
+        let byte = self.read_hex_digits(2)?;
+        Ok(char::from(byte as u8))
+    }
+}
+
+fn single_char_token(ch: char) -> Option<Token> {
+    match ch {
+        '{' => Some(Token::LeftBrace),
+        '}' => Some(Token::RightBrace),
+        '[' => Some(Token::LeftBracket),
+        ']' => Some(Token::RightBracket),
+        ',' => Some(Token::Comma),
+        ':' => Some(Token::Colon),
+        _ => None,
+    }
+}
+
+fn is_high_surrogate(code_point: u32) -> bool {
+    (0xD800..=0xDBFF).contains(&code_point)
+}
+
+fn is_low_surrogate(code_point: u32) -> bool {
+    (0xDC00..=0xDFFF).contains(&code_point)
+}
+
+fn combine_surrogates(high: u32, low: u32) -> u32 {
+    0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    type Result<T> = super::Result<T>;
+    fn tokenize(input: &str) -> Result<Vec<Token>> {
+        let mut tokenizer = Tokenizer::new(input);
+        tokenizer.tokenize()
+    }
+
+    #[test]
+    fn test_tokenizer_new() -> Result<()> {
+        // Can't directly inspect private fields,
+        // so verify construction by using the struct's methods
+        let mut t = Tokenizer::new("42");
+        let tokens = t.tokenize()?;
+        assert_eq!(tokens.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_initial_position() {
+        let tokenizer = Tokenizer::new("test");
+        assert_eq!(tokenizer.position, 0);
+    }
 
     #[test]
     fn test_empty_braces() -> Result<()> {
@@ -325,17 +478,16 @@ mod tests {
     }
 
     #[test]
-    fn test_position_is_byte_offset_after_multibyte() {
-        // "café" is 5 chars but 6 bytes; the '@' that follows sits at byte 8
-        // (6 bytes for the quoted string + 1 space + 1). Position must be the
-        // byte offset, not skewed by a char-vs-byte count mix.
+    fn test_position_is_char_index_after_multibyte() {
+        // With a Vec<char> cursor, position is a char index: 'é' counts as one.
+        // '@' is the 8th char (index 7), regardless of 'é' being 2 bytes.
         let err = tokenize(r#""café" @"#).unwrap_err();
         assert_eq!(
             err,
             JsonError::UnexpectedToken {
                 expected: "valid JSON token".to_string(),
                 found: "@".to_string(),
-                position: 8,
+                position: 7,
             }
         );
     }
@@ -344,5 +496,312 @@ mod tests {
     fn test_unterminated_string_should_not_produce_token() {
         let err = tokenize(r#""hello"#).unwrap_err();
         assert!(matches!(err, JsonError::UnterminatedString { position: 0 }))
+    }
+
+    #[test]
+    fn test_tokenize_literals() -> Result<()> {
+        assert_eq!(tokenize("true")?, vec![Token::Boolean(true)]);
+        assert_eq!(tokenize("false")?, vec![Token::Boolean(false)]);
+        assert_eq!(tokenize("null")?, vec![Token::Null]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_tokenizer_multiple_tokens() -> Result<()> {
+        // Tests that a single tokenize() call handles multiple tokens
+        // Note: Unlike Python iterators, calling tokenize() again on the same
+        // instance would return empty - the input has been consumed.
+        // Create a new Tokenizer instance if you need to parse new input.
+        let tokens = tokenize("123 456")?;
+        assert_eq!(tokens.len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_tokenize_negative_number() -> Result<()> {
+        let tokens = tokenize("-3.5")?;
+        assert_eq!(tokens, vec![Token::Number(-3.5)]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_keyword_error_position_points_to_start() {
+        let err = tokenize("   xyz").unwrap_err();
+        match err {
+            JsonError::UnexpectedToken { position, .. } => {
+                assert_eq!(
+                    position, 3,
+                    "error position should point to the start of 'xyz' (index 3), not past it"
+                );
+            }
+            other => panic!("expected UnexpectedToken, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_escape_newline() -> Result<()> {
+        let tokens = tokenize(r#""hello\nworld""#)?;
+        assert_eq!(tokens, vec![Token::String("hello\nworld".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_escape_tab() -> Result<()> {
+        let tokens = tokenize(r#""col1\tcol2""#)?;
+        assert_eq!(tokens, vec![Token::String("col1\tcol2".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_escape_quote() -> Result<()> {
+        let tokens = tokenize(r#""say \"hello\"""#)?;
+        assert_eq!(tokens, vec![Token::String("say \"hello\"".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_escape_backslash() -> Result<()> {
+        let tokens = tokenize(r#""path\\to\\file""#)?;
+        assert_eq!(tokens, vec![Token::String("path\\to\\file".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_multiple_escapes() -> Result<()> {
+        let tokens = tokenize(r#""a\nb\tc\"""#)?;
+        assert_eq!(tokens, vec![Token::String("a\nb\tc\"".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_escape_forward_slash() -> Result<()> {
+        let tokens = tokenize(r#""a\/b""#)?;
+        assert_eq!(tokens, vec![Token::String("a/b".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_escape_carriage_return() -> Result<()> {
+        let tokens = tokenize(r#""line\r\n""#)?;
+        assert_eq!(tokens, vec![Token::String("line\r\n".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_escape_backspace_formfeed() -> Result<()> {
+        let tokens = tokenize(r#""\b\f""#)?;
+        assert_eq!(tokens, vec![Token::String("\u{0008}\u{000C}".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_unicode_escape_basic() -> Result<()> {
+        // \u0041 is 'A'
+        let tokens = tokenize(r#""\u0041""#)?;
+        assert_eq!(tokens, vec![Token::String("A".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_unicode_escape_multiple() -> Result<()> {
+        // \u0048\u0069 is "Hi"
+        let tokens = tokenize(r#""\u0048\u0069""#)?;
+        assert_eq!(tokens, vec![Token::String("Hi".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_unicode_escape_mixed() -> Result<()> {
+        // Mix of regular chars and unicode escapes
+        let tokens = tokenize(r#""Hello \u0057orld""#)?;
+        assert_eq!(tokens, vec![Token::String("Hello World".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_unicode_escape_lowercase() -> Result<()> {
+        // Lowercase hex digits should work too
+        let tokens = tokenize(r#""\u004a""#)?;
+        assert_eq!(tokens, vec![Token::String("J".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_unicode_escape_surrogate_pair() -> Result<()> {
+        // \uD83D\uDE00 is the emoji, built from a high and low surrogate
+        let tokens = tokenize(r#""\uD83D\uDE00""#)?;
+        assert_eq!(tokens, vec![Token::String("😀".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_unicode_escape_surrogate_pair_mixed() -> Result<()> {
+        let tokens = tokenize(r#""hi \uD83D\uDE00!""#)?;
+        assert_eq!(tokens, vec![Token::String("hi 😀!".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_lone_high_surrogate_rejected() {
+        let result = tokenize(r#""\uD83D""#);
+        assert!(matches!(result, Err(JsonError::InvalidUnicode { .. })));
+    }
+
+    #[test]
+    fn test_lone_low_surrogate_rejected() {
+        let result = tokenize(r#""\uDE00""#);
+        assert!(matches!(result, Err(JsonError::InvalidUnicode { .. })));
+    }
+
+    #[test]
+    fn test_high_surrogate_followed_by_non_surrogate_rejected() {
+        let result = tokenize(r#""\uD83DA""#);
+        assert!(matches!(result, Err(JsonError::InvalidUnicode { .. })));
+    }
+
+    #[test]
+    fn test_high_surrogate_followed_by_plain_char_rejected() {
+        let result = tokenize(r#""\uD83Dx""#);
+        assert!(matches!(result, Err(JsonError::InvalidUnicode { .. })));
+    }
+
+    #[test]
+    fn test_hex_escape_basic() -> Result<()> {
+        // \x41 is 'A'
+        let tokens = tokenize(r#""\x41""#)?;
+        assert_eq!(tokens, vec![Token::String("A".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hex_escape_lowercase() -> Result<()> {
+        let tokens = tokenize(r#""\x4a""#)?;
+        assert_eq!(tokens, vec![Token::String("J".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hex_escape_mixed() -> Result<()> {
+        let tokens = tokenize(r#""a\x42c""#)?;
+        assert_eq!(tokens, vec![Token::String("aBc".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hex_escape_high_byte() -> Result<()> {
+        // \xFF is 'ÿ' - the top of the latin-1 range
+        let tokens = tokenize(r#""\xFF""#)?;
+        assert_eq!(tokens, vec![Token::String("ÿ".to_string())]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hex_escape_too_short() {
+        let result = tokenize(r#""\x4""#);
+        assert!(matches!(result, Err(JsonError::InvalidUnicode { .. })));
+    }
+
+    #[test]
+    fn test_hex_escape_bad_hex() {
+        let result = tokenize(r#""\xGG""#);
+        assert!(matches!(result, Err(JsonError::InvalidUnicode { .. })));
+    }
+
+    #[test]
+    fn test_invalid_escape_sequence() {
+        let result = tokenize(r#""\q""#);
+        assert!(matches!(result, Err(JsonError::InvalidEscape { .. })));
+    }
+
+    #[test]
+    fn test_invalid_unicode_too_short() {
+        let result = tokenize(r#""\u004""#);
+        assert!(matches!(result, Err(JsonError::InvalidUnicode { .. })));
+    }
+
+    #[test]
+    fn test_invalid_unicode_reports_digits_read_so_far() {
+        // The reported sequence is the raw partial digits, so leading zeros survive
+        for (input, sequence, position) in [
+            (r#""\u00GG""#, "00", 5),
+            (r#""\uGG""#, "", 3),
+            (r#""\u004""#, "004", 6),
+            (r#""\x4""#, "4", 4),
+            (r#""\xGG""#, "", 3),
+        ] {
+            assert_eq!(
+                tokenize(input).unwrap_err(),
+                JsonError::InvalidUnicode {
+                    sequence: sequence.to_string(),
+                    position,
+                },
+                "for input {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_invalid_unicode_bad_hex() {
+        let result = tokenize(r#""\u00GG""#);
+        assert!(matches!(result, Err(JsonError::InvalidUnicode { .. })));
+    }
+
+    #[test]
+    fn test_unterminated_string_with_escape() {
+        let result = tokenize(r#""hello\n"#);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_advance_sequence() {
+        let mut tokenizer = Tokenizer::new("abc");
+        assert_eq!(tokenizer.advance(), Some('a'));
+        assert_eq!(tokenizer.advance(), Some('b'));
+        assert_eq!(tokenizer.advance(), Some('c'));
+        assert_eq!(tokenizer.advance(), None);
+    }
+
+    #[test]
+    fn test_peek_doesnt_advance() {
+        let mut tokenizer = Tokenizer::new("ab");
+        assert_eq!(tokenizer.peek(), Some('a'));
+        assert_eq!(tokenizer.peek(), Some('a'));
+        assert_eq!(tokenizer.peek(), Some('a'));
+        assert_eq!(tokenizer.advance(), Some('a'));
+    }
+
+    #[test]
+    fn test_advance_order_matters() {
+        let mut t1 = Tokenizer::new("12");
+        let mut t2 = Tokenizer::new("12");
+
+        // Same operations in same order
+        assert_eq!(t1.advance(), t2.advance());
+        assert_eq!(t1.advance(), t2.advance());
+    }
+
+    #[test]
+    fn test_invalid_escape_contains_char() {
+        let result = tokenize(r#""\q""#);
+
+        match result {
+            Err(JsonError::InvalidEscape { char, position }) => {
+                assert_eq!(char, 'q');
+                assert!(position > 0); // Not at start
+            }
+            _ => panic!("Expected InvalidEscape error"),
+        }
+    }
+
+    #[test]
+    fn test_error_message_is_helpful() {
+        let err = JsonError::InvalidEscape {
+            char: 'x',
+            position: 5,
+        };
+        let msg = format!("{}", err);
+
+        assert!(msg.contains("escape"), "Should mention 'escape'");
+        assert!(msg.contains("x"), "Should include the invalid char");
     }
 }
