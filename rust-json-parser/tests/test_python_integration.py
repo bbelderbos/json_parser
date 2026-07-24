@@ -30,3 +30,25 @@ class TestErrorHandling:
             parse_json('{"bad": }')
         except ValueError as e:
             assert "position" in str(e).lower()
+
+
+class TestBasicParsing:
+    def test_parse_simple_object(self):
+        result = parse_json('{"name": "Alice"}')
+        assert result["name"] == "Alice"
+
+    def test_parse_nested_structure(self):
+        result = parse_json('{"users": [{"id": 1}, {"id": 2}]}')
+        assert len(result["users"]) == 2
+        assert result["users"][0]["id"] == 1
+
+    def test_parse_all_json_types(self):
+        result = parse_json(
+            '{"str": "hello", "num": 42, "bool": true, "null": null, "arr": [1,2], "obj": {}}'
+        )
+        assert result["str"] == "hello"
+        assert result["num"] == 42.0
+        assert result["bool"] is True
+        assert result["null"] is None
+        assert result["arr"] == [1.0, 2.0]
+        assert result["obj"] == {}

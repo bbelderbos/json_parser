@@ -70,8 +70,8 @@ impl From<JsonError> for PyErr {
 }
 
 #[pyfunction]
-fn parse_json(input: &str) -> PyResult<JsonValue> {
-    parse(input).map_err(|e| PyValueError::new_err(e.to_string()))
+fn parse_json<'py>(py: Python<'py>, input: &str) -> PyResult<Bound<'py, PyAny>> {
+    parse(input)?.into_pyobject(py)
 }
 
 #[pymodule]
