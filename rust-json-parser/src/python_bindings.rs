@@ -1,18 +1,7 @@
-use crate::{JsonValue, parse};
+use crate::{parse, JsonError, JsonValue};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
-
-#[pyfunction]
-fn parse_json(input: &str) -> PyResult<JsonValue> {
-    parse(input).map_err(|e| PyValueError::new_err(e.to_string()))
-}
-
-#[pymodule]
-fn _rust_json_parser(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(parse_json, m)?)?;
-    Ok(())
-}
 
 impl<'py> IntoPyObject<'py> for JsonValue {
     type Target = PyAny;
@@ -41,4 +30,54 @@ impl<'py> IntoPyObject<'py> for JsonValue {
             }
         }
     }
+}
+
+impl From<JsonError> for PyErr {
+    fn from(err: JsonError) -> PyErr {
+        match err {
+            JsonError::UnexpectedToken {
+                expected,
+                found,
+                position,
+            } => PyValueError::new_err(format!(
+                "Unexpected token at position {}: expected {}, found {}",
+                position, expected, found
+            )),
+            JsonError::UnexpectedEndOfInput { expected, position } => {
+                PyValueError::new_err(format!(
+                    "Unexpected end of input at position {}: expected {}",
+                    position, expected
+                ))
+            }
+            JsonError::InvalidNumber { value, position } => PyValueError::new_err(format!(
+                "Invalid number '{}' at position {}",
+                value, position
+            )),
+            JsonError::UnterminatedString { position } => PyValueError::new_err(format!(
+                "Unterminated string starting at position {}",
+                position
+            )),
+            JsonError::InvalidEscape { char, position } => PyValueError::new_err(format!(
+                "Invalid escape character '{}' at position {}",
+                char, position
+            )),
+            JsonError::InvalidUnicode { sequence, position } => PyValueError::new_err(format!(
+                "Invalid unicode sequence '{}' at position {}",
+                sequence, position
+            )),
+        }
+    }
+}
+
+#[pyfunction]
+fn parse_json(input: &str) -> PyResult<JsonValue> {
+    parse(input).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+#[pymodule]
+fn _rust_json_parser(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(parse_json, m)?)?;
+    //m.add_function(wrap_pyfunction!(parse_json_file, m)?)?;
+    //m.add_function(wrap_pyfunction!(dumps, m)?)?;
+    Ok(())
 }
