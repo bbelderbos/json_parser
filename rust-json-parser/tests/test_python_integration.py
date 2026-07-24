@@ -1,6 +1,6 @@
 import pytest
 
-from rust_json_parser import parse_json
+from rust_json_parser import parse_json, parse_json_file
 
 
 class TestTypeConversions:
@@ -30,6 +30,10 @@ class TestErrorHandling:
             parse_json('{"bad": }')
         except ValueError as e:
             assert "position" in str(e).lower()
+
+    def test_file_not_found_raises_io_error(self):
+        with pytest.raises(IOError):
+            parse_json_file("/nonexistent/file.json")
 
 
 class TestBasicParsing:

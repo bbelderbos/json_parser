@@ -74,10 +74,16 @@ fn parse_json<'py>(py: Python<'py>, input: &str) -> PyResult<Bound<'py, PyAny>> 
     parse(input)?.into_pyobject(py)
 }
 
+#[pyfunction]
+fn parse_json_file<'py>(py: Python<'py>, file_path: &str) -> PyResult<Bound<'py, PyAny>> {
+    let input = std::fs::read_to_string(file_path)?;
+    parse(&input)?.into_pyobject(py)
+}
+
 #[pymodule]
 fn _rust_json_parser(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_json, m)?)?;
-    //m.add_function(wrap_pyfunction!(parse_json_file, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_json_file, m)?)?;
     //m.add_function(wrap_pyfunction!(dumps, m)?)?;
     Ok(())
 }
