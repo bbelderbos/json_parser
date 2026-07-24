@@ -1,9 +1,14 @@
+use std::collections::HashMap;
+use std::fmt;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum JsonValue {
     Null,
     Boolean(bool),
     Number(f64),
     String(String),
+    Array(Vec<JsonValue>),
+    Object(HashMap<String, JsonValue>),
 }
 
 impl JsonValue {
@@ -28,11 +33,91 @@ impl JsonValue {
             _ => None,
         }
     }
+
+    pub fn as_array(&self) -> Option<&Vec<JsonValue>> {
+        match self {
+            JsonValue::Array(arr) => Some(arr),
+            _ => None,
+        }
+    }
+
+    pub fn as_object(&self) -> Option<&HashMap<String, JsonValue>> {
+        match self {
+            JsonValue::Object(obj) => Some(obj),
+            _ => None,
+        }
+    }
+
+    pub fn get(&self, key: &str) -> Option<&JsonValue> {
+        match self {
+            JsonValue::Object(obj) => obj.get(key),
+            _ => None,
+        }
+    }
+
+    pub fn get_index(&self, index: usize) -> Option<&JsonValue> {
+        match self {
+            JsonValue::Array(arr) => arr.get(index),
+            _ => None,
+        }
+    }
+}
+
+fn write_json_string(f: &mut fmt::Formatter<'_>, s: &str) -> fmt::Result {
+    write!(f, "\"")?;
+    for c in s.chars() {
+        match c {
+            '"' => write!(f, "\\\"")?,
+            '\\' => write!(f, "\\\\")?,
+            '\n' => write!(f, "\\n")?,
+            '\r' => write!(f, "\\r")?,
+            '\t' => write!(f, "\\t")?,
+            '\u{08}' => write!(f, "\\b")?,
+            '\u{0C}' => write!(f, "\\f")?,
+            c if (c as u32) < 0x20 => write!(f, "\\u{:04x}", c as u32)?,
+            c => write!(f, "{c}")?,
+        }
+    }
+    write!(f, "\"")
+}
+
+impl fmt::Display for JsonValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            JsonValue::Null => write!(f, "null"),
+            JsonValue::Boolean(b) => write!(f, "{b}"),
+            JsonValue::Number(n) => write!(f, "{n}"),
+            JsonValue::String(s) => write_json_string(f, s),
+            JsonValue::Array(arr) => {
+                write!(f, "[")?;
+                for (i, v) in arr.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ",")?;
+                    }
+                    write!(f, "{v}")?;
+                }
+                write!(f, "]")
+            }
+            JsonValue::Object(obj) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in obj.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ",")?;
+                    }
+                    write_json_string(f, k)?;
+                    write!(f, ":{v}")?;
+                }
+                write!(f, "}}")
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::JsonParser;
+    use crate::error::Result;
 
     #[test]
     fn test_json_value_equality() {
@@ -78,5 +163,68 @@ mod tests {
 
         let value = JsonValue::Null;
         assert!(value.is_null());
+    }
+
+    #[test]
+    fn test_display_primitives() {
+        assert_eq!(JsonValue::Null.to_string(), "null");
+        assert_eq!(JsonValue::Boolean(true).to_string(), "true");
+        assert_eq!(JsonValue::Boolean(false).to_string(), "false");
+        assert_eq!(JsonValue::Number(42.0).to_string(), "42");
+        assert_eq!(JsonValue::Number(3.14).to_string(), "3.14");
+        assert_eq!(
+            JsonValue::String("hello".to_string()).to_string(),
+            "\"hello\""
+        );
+    }
+
+    #[test]
+    fn test_display_array() {
+        let value = JsonValue::Array(vec![JsonValue::Number(1.0), JsonValue::Number(2.0)]);
+        assert_eq!(value.to_string(), "[1,2]");
+    }
+
+    #[test]
+    fn test_display_empty_containers() {
+        assert_eq!(JsonValue::Array(vec![]).to_string(), "[]");
+        assert_eq!(JsonValue::Object(HashMap::new()).to_string(), "{}");
+    }
+
+    #[test]
+    fn test_display_escape_string() {
+        let value = JsonValue::String("hello\nworld".to_string());
+        assert_eq!(value.to_string(), "\"hello\\nworld\"");
+    }
+
+    #[test]
+    fn test_display_escape_quotes() {
+        let value = JsonValue::String("say \"hi\"".to_string());
+        assert_eq!(value.to_string(), "\"say \\\"hi\\\"\"");
+    }
+
+    #[test]
+    fn test_display_escape_control_chars() {
+        let value = JsonValue::String("\u{01}\t\u{08}".to_string());
+        assert_eq!(value.to_string(), "\"\\u0001\\t\\b\"");
+    }
+
+    #[test]
+    fn test_display_nested() -> Result<()> {
+        let mut parser = JsonParser::new(r#"{"arr": [1, 2]}"#)?;
+        let value = parser.parse()?;
+        let output = value.to_string();
+        // Object key order may vary, so check components
+        assert!(output.contains("\"arr\""));
+        assert!(output.contains("[1,2]"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_display_nested_array() {
+        let value = JsonValue::Array(vec![JsonValue::Array(vec![
+            JsonValue::Number(1.0),
+            JsonValue::Number(2.0),
+        ])]);
+        assert_eq!(value.to_string(), "[[1,2]]");
     }
 }

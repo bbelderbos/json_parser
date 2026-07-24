@@ -1,19 +1,41 @@
-use rust_json_parser::parse;
+use rust_json_parser::{Result, parse};
 
-fn main() {
-    let inputs = [
-        r#""The quick brown fox jumps over the lazy dog""#,
-        "3.14159265358979",
-        r#""missing end quote"#,
-    ];
-
-    for input in inputs {
-        println!("Input: {input}");
-
-        match parse(input) {
-            Ok(value) => println!("Parsed: {value:?}"),
-            Err(error) => println!("Error: {error}"),
+fn main() -> Result<()> {
+    let json = r#"{
+        "name": "Rust JSON Parser",
+        "version": 1.0,
+        "features": ["arrays", "objects", "nesting"],
+        "metadata": {
+            "author": "You",
+            "complete": true
         }
-        println!();
-    }
+    }"#;
+
+    let value = parse(json)?;
+
+    let name = value
+        .get("name")
+        .expect("missing \"name\" field")
+        .as_str()
+        .expect("\"name\" should be a string");
+    let features = value
+        .get("features")
+        .expect("missing \"features\" field")
+        .as_array()
+        .expect("\"features\" should be an array");
+    let author = value
+        .get("metadata")
+        .expect("missing \"metadata\" field")
+        .get("author")
+        .expect("missing \"author\" field")
+        .as_str()
+        .expect("\"author\" should be a string");
+
+    println!("name: {name}");
+    println!("features: {features:?}");
+    println!("author: {author}");
+    println!();
+    println!("{value}");
+
+    Ok(())
 }
