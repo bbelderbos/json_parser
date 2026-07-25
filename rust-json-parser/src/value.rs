@@ -48,61 +48,9 @@ impl JsonValue {
         }
     }
 
-    fn pretty_print_helper(
-        &self,
-        indent: usize,
-        current_indent: usize,
-        result: &mut String,
-    ) -> fmt::Result {
-        let indent_str = " ".repeat(current_indent);
-        match self {
-            JsonValue::Null => result.push_str("null"),
-            JsonValue::Boolean(b) => result.push_str(&b.to_string()),
-            JsonValue::Number(n) => result.push_str(&n.to_string()),
-            JsonValue::String(s) => write_json_string(result, s)?,
-            JsonValue::Array(arr) => {
-                result.push('[');
-                if !arr.is_empty() {
-                    result.push('\n');
-                    for (i, v) in arr.iter().enumerate() {
-                        if i > 0 {
-                            result.push(',');
-                            result.push('\n');
-                        }
-                        result.push_str(&" ".repeat(current_indent + indent));
-                        v.pretty_print_helper(indent, current_indent + indent, result)?;
-                    }
-                    result.push('\n');
-                    result.push_str(&indent_str);
-                }
-                result.push(']');
-            }
-            JsonValue::Object(obj) => {
-                result.push('{');
-                if !obj.is_empty() {
-                    result.push('\n');
-                    for (i, (k, v)) in obj.iter().enumerate() {
-                        if i > 0 {
-                            result.push(',');
-                            result.push('\n');
-                        }
-                        result.push_str(&" ".repeat(current_indent + indent));
-                        write_json_string(result, k)?;
-                        result.push(':');
-                        v.pretty_print_helper(indent, current_indent + indent, result)?;
-                    }
-                    result.push('\n');
-                    result.push_str(&indent_str);
-                }
-                result.push('}');
-            }
-        }
-        Ok(())
-    }
-
     pub fn pretty_print(&self, indent: usize) -> String {
         let mut result = String::new();
-        let _ = self.pretty_print_helper(indent, 0, &mut result);
+        let _ = write_json(self, &mut result, Some(indent), 0);
         result
     }
 
@@ -117,6 +65,56 @@ impl JsonValue {
         match self {
             JsonValue::Array(arr) => arr.get(index),
             _ => None,
+        }
+    }
+}
+
+fn write_json<W: fmt::Write>(
+    value: &JsonValue,
+    f: &mut W,
+    indent: Option<usize>,
+    current: usize,
+) -> fmt::Result {
+    let inner = current + indent.unwrap_or(0);
+    let (nl, pad, close) = match indent {
+        Some(_) => ("\n", " ".repeat(inner), " ".repeat(current)),
+        None => ("", String::new(), String::new()),
+    };
+
+    match value {
+        JsonValue::Null => f.write_str("null"),
+        JsonValue::Boolean(b) => write!(f, "{b}"),
+        JsonValue::Number(n) => write!(f, "{n}"),
+        JsonValue::String(s) => write_json_string(f, s),
+        JsonValue::Array(arr) => {
+            f.write_char('[')?;
+            for (i, v) in arr.iter().enumerate() {
+                if i > 0 {
+                    f.write_char(',')?;
+                }
+                write!(f, "{nl}{pad}")?;
+                write_json(v, f, indent, inner)?;
+            }
+            if !arr.is_empty() {
+                write!(f, "{nl}{close}")?;
+            }
+            f.write_char(']')
+        }
+        JsonValue::Object(obj) => {
+            f.write_char('{')?;
+            for (i, (k, v)) in obj.iter().enumerate() {
+                if i > 0 {
+                    f.write_char(',')?;
+                }
+                write!(f, "{nl}{pad}")?;
+                write_json_string(f, k)?;
+                f.write_char(':')?;
+                write_json(v, f, indent, inner)?;
+            }
+            if !obj.is_empty() {
+                write!(f, "{nl}{close}")?;
+            }
+            f.write_char('}')
         }
     }
 }
@@ -141,33 +139,7 @@ fn write_json_string<W: fmt::Write>(f: &mut W, s: &str) -> fmt::Result {
 
 impl fmt::Display for JsonValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            JsonValue::Null => write!(f, "null"),
-            JsonValue::Boolean(b) => write!(f, "{b}"),
-            JsonValue::Number(n) => write!(f, "{n}"),
-            JsonValue::String(s) => write_json_string(f, s),
-            JsonValue::Array(arr) => {
-                write!(f, "[")?;
-                for (i, v) in arr.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ",")?;
-                    }
-                    write!(f, "{v}")?;
-                }
-                write!(f, "]")
-            }
-            JsonValue::Object(obj) => {
-                write!(f, "{{")?;
-                for (i, (k, v)) in obj.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ",")?;
-                    }
-                    write_json_string(f, k)?;
-                    write!(f, ":{v}")?;
-                }
-                write!(f, "}}")
-            }
-        }
+        write_json(self, f, None, 0)
     }
 }
 
