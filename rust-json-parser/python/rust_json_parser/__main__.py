@@ -26,7 +26,10 @@ try:
     print(dumps(parse(input_arg), indent=4))
 except FileNotFoundError:
     print(f"Error: File '{input_arg}' not found.")
+    sys.exit(1)
 except ValueError as e:
     print(f"Error: Invalid JSON - {e}")
+    sys.exit(1)
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
+    sys.exit(1)
