@@ -1,4 +1,4 @@
-use crate::{parse, JsonError, JsonValue};
+use crate::{JsonError, JsonValue, parse};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
