@@ -1,4 +1,4 @@
-use crate::{JsonError, JsonValue, parse};
+use crate::{parse, JsonError, JsonValue};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -138,6 +138,6 @@ fn py_to_json_value(obj: &Bound<PyAny>) -> PyResult<JsonValue> {
 fn _rust_json_parser(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_json, m)?)?;
     m.add_function(wrap_pyfunction!(parse_json_file, m)?)?;
-    //m.add_function(wrap_pyfunction!(dumps, m)?)?;
+    m.add_function(wrap_pyfunction!(dumps, m)?)?;
     Ok(())
 }
