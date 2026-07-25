@@ -1,6 +1,6 @@
 import pytest
 
-from rust_json_parser import parse_json, parse_json_file
+from rust_json_parser import parse_json, parse_json_file, dumps
 
 
 class TestTypeConversions:
@@ -56,3 +56,14 @@ class TestBasicParsing:
         assert result["null"] is None
         assert result["arr"] == [1.0, 2.0]
         assert result["obj"] == {}
+
+
+class TestSerialization:
+    def test_dumps_basic(self):
+        result = dumps({"key": "value"})
+        assert '"key"' in result
+        assert '"value"' in result
+
+    def test_dumps_with_indent(self):
+        result = dumps({"key": "value"}, indent=2)
+        assert "\n" in result

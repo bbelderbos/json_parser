@@ -48,6 +48,64 @@ impl JsonValue {
         }
     }
 
+    fn pretty_print_helper(
+        &self,
+        indent: usize,
+        current_indent: usize,
+        result: &mut String,
+    ) -> fmt::Result {
+        let indent_str = " ".repeat(current_indent);
+        match self {
+            JsonValue::Null => result.push_str("null"),
+            JsonValue::Boolean(b) => result.push_str(&b.to_string()),
+            JsonValue::Number(n) => result.push_str(&n.to_string()),
+            JsonValue::String(s) => write_json_string(result, s)?,
+            JsonValue::Array(arr) => {
+                result.push('[');
+                if !arr.is_empty() {
+                    result.push('\n');
+                    for (i, v) in arr.iter().enumerate() {
+                        if i > 0 {
+                            result.push(',');
+                            result.push('\n');
+                        }
+                        result.push_str(&" ".repeat(current_indent + indent));
+                        v.pretty_print_helper(indent, current_indent + indent, result)?;
+                    }
+                    result.push('\n');
+                    result.push_str(&indent_str);
+                }
+                result.push(']');
+            }
+            JsonValue::Object(obj) => {
+                result.push('{');
+                if !obj.is_empty() {
+                    result.push('\n');
+                    for (i, (k, v)) in obj.iter().enumerate() {
+                        if i > 0 {
+                            result.push(',');
+                            result.push('\n');
+                        }
+                        result.push_str(&" ".repeat(current_indent + indent));
+                        write_json_string(result, k)?;
+                        result.push(':');
+                        v.pretty_print_helper(indent, current_indent + indent, result)?;
+                    }
+                    result.push('\n');
+                    result.push_str(&indent_str);
+                }
+                result.push('}');
+            }
+        }
+        Ok(())
+    }
+
+    pub fn pretty_print(&self, indent: usize) -> String {
+        let mut result = String::new();
+        let _ = self.pretty_print_helper(indent, 0, &mut result);
+        result
+    }
+
     pub fn get(&self, key: &str) -> Option<&JsonValue> {
         match self {
             JsonValue::Object(obj) => obj.get(key),
@@ -63,7 +121,7 @@ impl JsonValue {
     }
 }
 
-fn write_json_string(f: &mut fmt::Formatter<'_>, s: &str) -> fmt::Result {
+fn write_json_string<W: fmt::Write>(f: &mut W, s: &str) -> fmt::Result {
     write!(f, "\"")?;
     for c in s.chars() {
         match c {
@@ -217,6 +275,28 @@ mod tests {
         assert!(output.contains("\"arr\""));
         assert!(output.contains("[1,2]"));
         Ok(())
+    }
+
+    #[test]
+    fn test_pretty_print_escapes_keys_and_values() -> Result<()> {
+        let value = JsonValue::Object(HashMap::from([(
+            "say \"hi\"".to_string(),
+            JsonValue::String("line\nbreak".to_string()),
+        )]));
+
+        let pretty = value.pretty_print(2);
+        assert!(pretty.contains(r#""say \"hi\"""#));
+        assert!(pretty.contains(r#""line\nbreak""#));
+
+        let mut parser = JsonParser::new(&pretty)?;
+        assert_eq!(parser.parse()?, value);
+        Ok(())
+    }
+
+    #[test]
+    fn test_pretty_print_string_not_double_quoted() {
+        let value = JsonValue::String("hello".to_string());
+        assert_eq!(value.pretty_print(2), r#""hello""#);
     }
 
     #[test]

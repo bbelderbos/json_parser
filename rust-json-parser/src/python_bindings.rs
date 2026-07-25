@@ -1,7 +1,8 @@
-use crate::{parse, JsonError, JsonValue};
+use crate::{JsonError, JsonValue, parse};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+use std::collections::HashMap;
 
 impl<'py> IntoPyObject<'py> for JsonValue {
     type Target = PyAny;
@@ -78,6 +79,59 @@ fn parse_json<'py>(py: Python<'py>, input: &str) -> PyResult<Bound<'py, PyAny>> 
 fn parse_json_file<'py>(py: Python<'py>, file_path: &str) -> PyResult<Bound<'py, PyAny>> {
     let input = std::fs::read_to_string(file_path)?;
     parse(&input)?.into_pyobject(py)
+}
+
+#[pyfunction]
+#[pyo3(signature = (obj, indent=None))]
+fn dumps(obj: &Bound<PyAny>, indent: Option<usize>) -> PyResult<String> {
+    let json_value = py_to_json_value(obj)?;
+    let json_string = match indent {
+        Some(i) => json_value.pretty_print(i),
+        None => json_value.to_string(),
+    };
+    Ok(json_string)
+}
+
+fn py_to_json_value(obj: &Bound<PyAny>) -> PyResult<JsonValue> {
+    if obj.is_none() {
+        return Ok(JsonValue::Null);
+    }
+
+    // needs to be checked before number because of Python inheritance (bool is a subclass of int)
+    if let Ok(b) = obj.extract::<bool>() {
+        return Ok(JsonValue::Boolean(b));
+    }
+
+    if let Ok(n) = obj.extract::<f64>() {
+        return Ok(JsonValue::Number(n));
+    }
+
+    if let Ok(s) = obj.extract::<String>() {
+        return Ok(JsonValue::String(s));
+    }
+
+    if let Ok(list) = obj.cast::<PyList>() {
+        let mut arr = Vec::new();
+        for item in list.iter() {
+            arr.push(py_to_json_value(&item)?);
+        }
+        return Ok(JsonValue::Array(arr));
+    }
+
+    if let Ok(dict) = obj.cast::<PyDict>() {
+        let mut map = HashMap::new();
+        for (key, value) in dict.iter() {
+            let key_str = key.extract::<String>()?;
+            let value_json = py_to_json_value(&value)?;
+            map.insert(key_str, value_json);
+        }
+        return Ok(JsonValue::Object(map));
+    }
+
+    // fallthrough of unsupported types
+    Err(PyValueError::new_err(
+        "Unsupported type for JSON conversion",
+    ))
 }
 
 #[pymodule]

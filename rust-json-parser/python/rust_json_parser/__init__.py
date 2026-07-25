@@ -1,3 +1,3 @@
-from ._rust_json_parser import parse_json, parse_json_file
+from ._rust_json_parser import parse_json, parse_json_file, dumps
 
-__all__ = ["parse_json", "parse_json_file"]
+__all__ = ["parse_json", "parse_json_file", "dumps"]
