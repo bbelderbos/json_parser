@@ -4,11 +4,15 @@ from pathlib import Path
 from rust_json_parser import parse_json, parse_json_file, dumps
 
 
-if len(sys.argv) < 2:
+if len(sys.argv) > 1:
+    input_arg = sys.argv[1]
+elif not sys.stdin.isatty():
+    input_arg = sys.stdin.read()
+else:
     print("Usage: uv run python -m rust_json_parser <json_string_or_file_path>")
+    print("       ... | uv run python -m rust_json_parser")
     sys.exit(1)
 
-input_arg = sys.argv[1]
 path = Path(input_arg)
 
 try:
