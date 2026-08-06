@@ -2,32 +2,33 @@ use std::fmt;
 
 pub type Result<T> = std::result::Result<T, JsonError>;
 
+/// Everything that can go wrong while tokenizing or parsing, with the byte offset
+/// in the input where it went wrong.
 #[derive(Debug, Clone, PartialEq)]
 pub enum JsonError {
+    /// A token showed up where the grammar did not allow it: a stray character such as
+    /// `@`, a misspelled literal like `tru`, a missing `:` between key and value, a
+    /// missing `,` between elements, or trailing content after the top-level value.
     UnexpectedToken {
         expected: String,
         found: String,
         position: usize,
     },
-    UnexpectedEndOfInput {
-        expected: String,
-        position: usize,
-    },
-    InvalidNumber {
-        value: String,
-        position: usize,
-    },
-    UnterminatedString {
-        position: usize,
-    },
-    InvalidEscape {
-        char: char,
-        position: usize,
-    },
-    InvalidUnicode {
-        sequence: String,
-        position: usize,
-    },
+    /// The input ran out while a value was still open — an unclosed `[` or `{`, or a
+    /// key with no value. Empty input lands here too.
+    UnexpectedEndOfInput { expected: String, position: usize },
+    /// A run of digits, `-`, and `.` that does not parse as an `f64`, such as `1.2.3`
+    /// or a bare `-`.
+    InvalidNumber { value: String, position: usize },
+    /// A string opened with `"` that the input ends before closing, including an input
+    /// ending mid-escape.
+    UnterminatedString { position: usize },
+    /// A backslash followed by a character that is not a recognized escape; `\q`, say.
+    InvalidEscape { char: char, position: usize },
+    /// A `\u` escape that is not four hex digits, resolves to no valid character, or is
+    /// a broken surrogate pair — a high surrogate with no low surrogate following it.
+    /// Malformed `\xNN` escapes report here as well.
+    InvalidUnicode { sequence: String, position: usize },
 }
 
 impl fmt::Display for JsonError {

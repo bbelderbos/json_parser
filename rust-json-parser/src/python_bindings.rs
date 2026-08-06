@@ -70,11 +70,44 @@ impl From<JsonError> for PyErr {
     }
 }
 
+/// Parse a JSON string into Python objects.
+///
+/// # Example
+///
+/// ```python
+/// >>> from rust_json_parser import parse_json
+/// >>> parse_json('{"name": "Alice"}')
+/// {'name': 'Alice'}
+/// >>> parse_json('[1, true, null]')
+/// [1.0, True, None]
+/// ```
+///
+/// # Errors
+///
+/// Raises `ValueError` for any malformed input — a stray token, an unclosed array,
+/// object or string, an unparseable number, or a bad escape sequence. The message
+/// carries the position in the input where parsing failed.
 #[pyfunction]
 fn parse_json<'py>(py: Python<'py>, input: &str) -> PyResult<Bound<'py, PyAny>> {
     parse(input)?.into_pyobject(py)
 }
 
+/// Read a file and parse its contents into Python objects.
+///
+/// # Example
+///
+/// ```python
+/// >>> from rust_json_parser import parse_json_file
+/// >>> parse_json_file("config.json")
+/// {'debug': True}
+/// ```
+///
+/// # Errors
+///
+/// Raises `FileNotFoundError` for a missing path, `PermissionError` if it cannot be
+/// opened, and plain `OSError` for anything else that blocks the read, including
+/// contents that are not valid UTF-8. Raises `ValueError` on malformed JSON, same as
+/// [`parse_json`].
 #[pyfunction]
 fn parse_json_file<'py>(py: Python<'py>, file_path: &str) -> PyResult<Bound<'py, PyAny>> {
     let input = std::fs::read_to_string(file_path)?;

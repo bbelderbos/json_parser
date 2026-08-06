@@ -1,13 +1,20 @@
 use std::collections::HashMap;
 use std::fmt;
 
+/// A parsed JSON document, or any value nested inside one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum JsonValue {
+    /// The `null` literal.
     Null,
+    /// The `true` or `false` literal.
     Boolean(bool),
+    /// A number; JSON draws no integer/float distinction, so every number is an `f64`.
     Number(f64),
+    /// A string with all escape sequences already decoded.
     String(String),
+    /// An ordered sequence of values.
     Array(Vec<JsonValue>),
+    /// A set of key-value pairs; backed by a [`HashMap`], so key order is not preserved.
     Object(HashMap<String, JsonValue>),
 }
 
