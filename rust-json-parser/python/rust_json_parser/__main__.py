@@ -1,10 +1,8 @@
+import importlib.util
 import json
 import sys
 from pathlib import Path
 
-import simplejson
-import simplejson.decoder
-import simplejson.scanner
 from rich.console import Console
 from rich.table import Table
 
@@ -27,11 +25,15 @@ def is_file(value: str) -> bool:
         return False
 
 
-def use_pure_python_simplejson() -> None:
-    """simplejson's wheel bundles a C decoder, so by default it measures Rust vs C."""
-    simplejson.decoder.scanstring = simplejson.decoder.py_scanstring
-    simplejson.decoder.make_scanner = simplejson.scanner.py_make_scanner
-    simplejson._default_decoder = simplejson.decoder.JSONDecoder()
+def require_pure_python_simplejson() -> None:
+    """A C-accelerated simplejson turns its column into a second Rust-vs-C comparison."""
+    if importlib.util.find_spec("simplejson._speedups") is None:
+        return
+    sys.exit(
+        "simplejson has its C extension installed, so its timings would be "
+        "meaningless here. Reinstall the pure-Python build with:\n"
+        '  DISABLE_SPEEDUPS=1 uv pip install "simplejson>=3.19.0" --no-binary simplejson'
+    )
 
 
 def make_record(i: int) -> dict:
@@ -75,7 +77,7 @@ def speedup(rust: float, other: float) -> str:
 
 
 def run_benchmarks() -> None:
-    use_pure_python_simplejson()
+    require_pure_python_simplejson()
 
     table = Table(
         title="JSON parsing: our Rust parser vs the alternatives",
