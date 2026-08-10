@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Rust-backed JSON parser with Python bindings"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "rich>=15.0.0",
+    "simplejson>=4.1.1",
+]
 
 [dependency-groups]
 dev = [
