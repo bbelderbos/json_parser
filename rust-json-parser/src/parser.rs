@@ -22,10 +22,14 @@ impl JsonParser {
         if self.is_at_end() {
             None
         } else {
-            let token = self.tokens[self.position].clone();
+            let token = std::mem::take(&mut self.tokens[self.position]);
             self.position += 1;
             Some(token)
         }
+    }
+
+    fn peek(&self) -> Option<&Token> {
+        self.tokens.get(self.position)
     }
 
     fn is_at_end(&self) -> bool {
@@ -68,12 +72,12 @@ impl JsonParser {
 
     fn parse_array(&mut self) -> Result<JsonValue> {
         let mut items = Vec::with_capacity(4);
-        match self.advance() {
-            Some(Token::RightBracket) => return Ok(JsonValue::Array(items)),
-            Some(_) => {
-                self.position -= 1; // Unconsume the token
-                items.push(self.parse_value()?);
+        match self.peek() {
+            Some(Token::RightBracket) => {
+                self.position += 1;
+                return Ok(JsonValue::Array(items));
             }
+            Some(_) => items.push(self.parse_value()?),
             None => {
                 return Err(JsonError::UnexpectedEndOfInput {
                     expected: "array value or ']'".to_string(),
