@@ -2,8 +2,8 @@ use std::fmt;
 
 pub type Result<T> = std::result::Result<T, JsonError>;
 
-/// Everything that can go wrong while tokenizing or parsing, with the byte offset
-/// in the input where it went wrong.
+/// Everything that can go wrong while tokenizing or parsing, with the character offset
+/// (index into the input's `char`s, not a byte offset) where it went wrong.
 #[derive(Debug, Clone, PartialEq)]
 pub enum JsonError {
     /// A token showed up where the grammar did not allow it: a stray character such as

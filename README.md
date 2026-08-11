@@ -1,8 +1,9 @@
 # rust-json-parser
 
-A JSON parser written from scratch in Rust, with Python bindings via PyO3. No `serde`, no
-external parsing crates — a hand-written tokenizer and recursive-descent parser, exposed to
-Python as a native extension module.
+A JSON parser written from scratch in Rust, with Python bindings via PyO3. The parser itself
+uses no `serde` and no external parsing crates — a hand-written tokenizer and recursive-descent
+parser, exposed to Python as a native extension module. (`serde_json` is pulled in only as a
+benchmark baseline to compare against, never for parsing.)
 
 Built over six weeks as the capstone of the [Python to Rust](https://scriptertorust.com) cohort.
 
