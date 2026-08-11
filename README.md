@@ -56,29 +56,51 @@ raise `FileNotFoundError`, unreadable ones `PermissionError`.
 
 ## Benchmarking
 
-`--benchmark` times four input shapes against three baselines and prints the ratios:
+`--benchmark` times four input shapes against three baselines and prints the ratios.
 
-| Input | Bytes | Ours | serde_json | json (C) | simplejson (pure Python) |
-|-------|------:|-----:|-----------:|---------:|-------------------------:|
-| Small | 260 | 0.001627s | 1.57x slower | 1.09x slower | **8.05x faster** |
-| Medium | 13,225 | 0.015093s | 1.62x slower | 1.61x slower | **8.46x faster** |
-| Large | 268,940 | 0.031652s | 1.38x slower | 1.55x slower | **8.21x faster** |
-| Nested x100 | 2,394 | 0.010068s | 1.40x slower | 1.61x slower | **8.80x faster** |
+A parser that stops at a Rust `JsonValue` tree and one that hands back a Python `dict` have
+not done the same amount of work, so there are two "ours" columns and each baseline sits
+next to the one it's comparable with:
 
-*macOS arm64, Python 3.12, release build. Ratios are our parser against each baseline.*
+| Input | Ours (Rust tree) | serde_json | Ours (Python objs) | json (C) | simplejson (pure Python) |
+|-------|-----------------:|-----------:|-------------------:|---------:|-------------------------:|
+| Small (260 B) | 1.65ms | 1.01ms — 1.63x slower | 2.48ms (+1.50x) | 1.47ms — 1.69x slower | 12.91ms — **5.20x faster** |
+| Medium (13 KB) | 14.31ms | 9.48ms — 1.51x slower | 22.90ms (+1.60x) | 9.16ms — 2.50x slower | 132.53ms — **5.79x faster** |
+| Large (269 KB) | 31.14ms | 19.59ms — 1.59x slower | 47.52ms (+1.53x) | 19.95ms — 2.38x slower | 267.12ms — **5.62x faster** |
+| Nested x100 (2.4 KB) | 10.19ms | 6.85ms — 1.49x slower | 14.41ms (+1.41x) | 6.12ms — 2.35x slower | 99.92ms — **6.94x faster** |
+
+*macOS arm64, Python 3.12, release build. Totals for the whole iteration batch (1,000 / 200
+/ 20 / 500 respectively), not per parse.*
 
 ### What the baselines mean
 
-Three references, because each answers a different question:
-
 - **serde_json** — is this parser fast, or is *Rust* fast? This is the only column that
-  isolates the quality of the implementation from the choice of language. Being 1.4–1.6x
+  isolates the quality of the implementation from the choice of language. Being 1.5–1.6x
   behind a heavily tuned reference implementation is the honest measure of where this
   code stands.
 - **`json` (C)** — the bar that matters in practice, since it's what a Python developer
   would otherwise import. CPython's `json` is C with 15+ years of tuning behind it.
 - **simplejson (pure Python)** — the compiled-versus-interpreted gap, running the same
   algorithm class in the interpreter.
+
+### The price of PyO3
+
+`Ours (Rust tree)` times `parse()`. `Ours (Python objs)` times what `parse_json()` actually
+does: `parse()` plus the `IntoPyObject` pass that allocates a `PyDict` per object, a
+`PyList` per array, and a Python `float`/`str` per leaf. That conversion is the `+1.4x` to
+`+1.6x` in parentheses — **a third to a half of the total cost of the function a Python
+caller imports**, on every input shape tested.
+
+Comparing the Rust-tree column against `json.loads` would have been flattering and wrong:
+it reads as 1.1–1.6x slower, while the end-to-end truth is 2.4–2.5x slower on anything
+bigger than a toy payload. `json.loads` builds those same Python objects and its column
+includes that cost, so this is the comparison that holds. The simplejson advantage shrinks
+the same way, from ~8x down to ~5.6x.
+
+Note the conversion overhead is roughly flat across sizes, which says it scales with the
+*number of values*, not bytes — as expected when the cost is one Python allocation per
+node. It's also the most obvious remaining optimization target: `PyDict` preallocation and
+interning repeated keys both attack it directly.
 
 ### The simplejson trap
 

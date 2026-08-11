@@ -11,6 +11,7 @@ from rust_json_parser import (
     parse_json_file,
     dumps,
     benchmark_performance,
+    benchmark_parse_json,
     benchmark_serde_json,
 )
 
@@ -69,11 +70,15 @@ def benchmark_inputs() -> list[tuple[str, str, int]]:
     ]
 
 
-def speedup(rust: float, other: float) -> str:
-    ratio = other / rust
+def ms(seconds: float) -> str:
+    return f"{seconds * 1000:.2f}ms"
+
+
+def speedup(ours: float, other: float) -> str:
+    ratio = other / ours
     if ratio >= 1:
-        return f"[green]{ratio:.2f}x faster[/green]"
-    return f"[red]{1 / ratio:.2f}x slower[/red]"
+        return f"{ms(other)}\n[green]{ratio:.2f}x faster[/green]"
+    return f"{ms(other)}\n[red]{1 / ratio:.2f}x slower[/red]"
 
 
 def run_benchmarks() -> None:
@@ -81,27 +86,27 @@ def run_benchmarks() -> None:
 
     table = Table(
         title="JSON parsing: our Rust parser vs the alternatives",
-        caption="Ratios are our parser against each baseline. Release build; simplejson C speedups disabled.",
+        caption="Each baseline is compared against the column that does the same work.\n"
+        "Release build; simplejson C speedups disabled.",
     )
     table.add_column("Input")
-    table.add_column("Bytes", justify="right")
-    table.add_column("Iters", justify="right")
-    table.add_column("Ours", justify="right")
+    table.add_column("Ours\n(Rust tree)", justify="right")
     table.add_column("serde_json")
+    table.add_column("Ours\n(Python objs)", justify="right")
     table.add_column("json (C)")
-    table.add_column("simplejson (py)")
+    table.add_column("simplejson\n(pure py)")
 
     for label, test_json, iterations in benchmark_inputs():
         rust, py_json, simple = benchmark_performance(test_json, iterations)
         serde = benchmark_serde_json(test_json, iterations)
+        converted = benchmark_parse_json(test_json, iterations)
         table.add_row(
-            label,
-            f"{len(test_json):,}",
-            f"{iterations:,}",
-            f"{rust:.6f}s",
-            f"{serde:.6f}s  {speedup(rust, serde)}",
-            f"{py_json:.6f}s  {speedup(rust, py_json)}",
-            f"{simple:.6f}s  {speedup(rust, simple)}",
+            f"{label}\n[dim]{len(test_json):,} B x{iterations:,}[/dim]",
+            ms(rust),
+            speedup(rust, serde),
+            f"{ms(converted)}\n[dim]+{converted / rust:.2f}x[/dim]",
+            speedup(converted, py_json),
+            speedup(converted, simple),
         )
 
     Console().print(table)

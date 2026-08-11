@@ -216,6 +216,29 @@ fn benchmark_performance(
     Ok((duration_rust, duration_json, duration_simple_json))
 }
 
+/// Time `iterations` parses of `test_json` through [`parse_json`], for reference.
+///
+/// Same work as [`benchmark_performance`]'s Rust timing plus the `IntoPyObject` pass that
+/// builds the Python dicts and lists — the like-for-like comparison against `json.loads`,
+/// which also returns Python objects.
+#[pyfunction]
+#[pyo3(signature = (test_json, iterations=1000, warmup=100))]
+fn benchmark_parse_json(
+    py: Python<'_>,
+    test_json: &str,
+    iterations: usize,
+    warmup: usize,
+) -> PyResult<f64> {
+    for _ in 0..warmup {
+        let _ = parse(test_json)?.into_pyobject(py)?;
+    }
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = parse(test_json)?.into_pyobject(py)?;
+    }
+    Ok(start.elapsed().as_secs_f64())
+}
+
 /// Time `iterations` parses of `test_json` with serde_json, for reference.
 ///
 /// Answers "is my parser fast, or is Rust fast?" — serde_json is the tuned baseline
@@ -241,6 +264,7 @@ fn _rust_json_parser(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_json_file, m)?)?;
     m.add_function(wrap_pyfunction!(dumps, m)?)?;
     m.add_function(wrap_pyfunction!(benchmark_performance, m)?)?;
+    m.add_function(wrap_pyfunction!(benchmark_parse_json, m)?)?;
     m.add_function(wrap_pyfunction!(benchmark_serde_json, m)?)?;
     Ok(())
 }
