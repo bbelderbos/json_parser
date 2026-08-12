@@ -15,15 +15,15 @@ pub enum Token {
     Null,
 }
 
-pub struct Tokenizer {
-    input: Vec<char>,
+pub struct Tokenizer<'a> {
+    input: &'a [u8],
     position: usize,
 }
 
-impl Tokenizer {
-    pub fn new(input: &str) -> Self {
+impl<'a> Tokenizer<'a> {
+    pub fn new(input: &'a str) -> Self {
         Self {
-            input: input.chars().collect(),
+            input: input.as_bytes(),
             position: 0,
         }
     }
@@ -37,16 +37,16 @@ impl Tokenizer {
                 continue;
             }
             match ch {
-                '"' => tokens.push(Token::String(self.read_string()?)),
-                '0'..='9' | '-' => tokens.push(self.read_number()?),
-                't' | 'f' | 'n' => tokens.push(self.read_literal()?),
-                ' ' | '\n' | '\r' | '\t' => {
+                b'"' => tokens.push(Token::String(self.read_string()?)),
+                b'0'..=b'9' | b'-' => tokens.push(self.read_number()?),
+                b't' | b'f' | b'n' => tokens.push(self.read_literal()?),
+                b' ' | b'\n' | b'\r' | b'\t' => {
                     self.advance();
                 }
                 _ => {
                     return Err(JsonError::UnexpectedToken {
                         expected: "valid JSON token".to_string(),
-                        found: ch.to_string(),
+                        found: char_at(self.input, self.position),
                         position: self.position,
                     });
                 }
@@ -55,13 +55,12 @@ impl Tokenizer {
         Ok(tokens)
     }
 
-    fn take_while(&mut self, predicate: impl Fn(char) -> bool) -> String {
-        let mut taken = String::with_capacity(16);
-        while let Some(ch) = self.peek().filter(|&ch| predicate(ch)) {
-            taken.push(ch);
+    fn take_while(&mut self, predicate: impl Fn(u8) -> bool) -> &'a [u8] {
+        let start = self.position;
+        while self.peek().is_some_and(&predicate) {
             self.advance();
         }
-        taken
+        &self.input[start..self.position]
     }
 
     fn read_string(&mut self) -> Result<String> {
@@ -71,12 +70,12 @@ impl Tokenizer {
         let content_start = self.position;
         while let Some(ch) = self.peek() {
             match ch {
-                '"' => {
-                    let value = self.input[content_start..self.position].iter().collect();
+                b'"' => {
+                    let value = slice_to_string(&self.input[content_start..self.position]);
                     self.advance(); // consume the closing quote
                     return Ok(value);
                 }
-                '\\' => return self.read_escaped_string(start, content_start),
+                b'\\' => return self.read_escaped_string(start, content_start),
                 _ => {
                     self.advance();
                 }
@@ -86,20 +85,23 @@ impl Tokenizer {
     }
 
     fn read_escaped_string(&mut self, start: usize, content_start: usize) -> Result<String> {
-        let mut value: String = self.input[content_start..self.position].iter().collect();
+        let mut value = self.input[content_start..self.position].to_vec();
         loop {
             match self.peek() {
                 None => return Err(JsonError::UnterminatedString { position: start }),
-                Some('"') => {
+                Some(b'"') => {
                     self.advance(); // consume the closing quote
-                    return Ok(value);
+                    return Ok(slice_to_string(&value));
                 }
-                Some('\\') => {
+                Some(b'\\') => {
                     self.advance(); // consume the backslash
-                    value.push(self.read_escape(start)?);
+                    let mut buf = [0u8; 4];
+                    value.extend_from_slice(
+                        self.read_escape(start)?.encode_utf8(&mut buf).as_bytes(),
+                    );
                 }
-                Some(ch) => {
-                    value.push(ch);
+                Some(byte) => {
+                    value.push(byte);
                     self.advance();
                 }
             }
@@ -113,19 +115,19 @@ impl Tokenizer {
             });
         };
         let escaped = match ch {
-            '"' => '"',
-            '\\' => '\\',
-            '/' => '/',
-            'b' => '\u{0008}',
-            'f' => '\u{000C}',
-            'n' => '\n',
-            'r' => '\r',
-            't' => '\t',
-            'u' => return self.parse_unicode_escape(),
-            'x' => return self.parse_hex_escape(),
+            b'"' => '"',
+            b'\\' => '\\',
+            b'/' => '/',
+            b'b' => '\u{0008}',
+            b'f' => '\u{000C}',
+            b'n' => '\n',
+            b'r' => '\r',
+            b't' => '\t',
+            b'u' => return self.parse_unicode_escape(),
+            b'x' => return self.parse_hex_escape(),
             other => {
                 return Err(JsonError::InvalidEscape {
-                    char: other,
+                    char: other as char,
                     position: self.position,
                 });
             }
@@ -136,7 +138,8 @@ impl Tokenizer {
 
     fn read_number(&mut self) -> Result<Token> {
         let start = self.position;
-        let number_str = self.take_while(|ch| ch.is_ascii_digit() || ch == '.' || ch == '-');
+        let number_bytes = self.take_while(|b| b.is_ascii_digit() || b == b'.' || b == b'-');
+        let number_str = slice_to_string(number_bytes);
 
         match number_str.parse::<f64>() {
             Ok(number) => Ok(Token::Number(number)),
@@ -149,31 +152,31 @@ impl Tokenizer {
 
     fn read_literal(&mut self) -> Result<Token> {
         let start = self.position;
-        let word = self.take_while(char::is_alphabetic);
+        let word = self.take_while(|b| b.is_ascii_alphabetic());
 
-        match word.as_str() {
-            "true" => Ok(Token::Boolean(true)),
-            "false" => Ok(Token::Boolean(false)),
-            "null" => Ok(Token::Null),
+        match word {
+            b"true" => Ok(Token::Boolean(true)),
+            b"false" => Ok(Token::Boolean(false)),
+            b"null" => Ok(Token::Null),
             _ => Err(JsonError::UnexpectedToken {
                 expected: "true, false, or null".to_string(),
-                found: word,
+                found: slice_to_string(word),
                 position: start,
             }),
         }
     }
 
-    fn advance(&mut self) -> Option<char> {
+    fn advance(&mut self) -> Option<u8> {
         if self.position < self.input.len() {
-            let ch = self.input[self.position];
+            let byte = self.input[self.position];
             self.position += 1;
-            Some(ch)
+            Some(byte)
         } else {
             None
         }
     }
 
-    fn peek(&self) -> Option<char> {
+    fn peek(&self) -> Option<u8> {
         self.input.get(self.position).copied()
     }
 
@@ -181,9 +184,9 @@ impl Tokenizer {
         let start = self.position;
         let mut value = 0;
         for _ in 0..count {
-            let Some(digit) = self.peek().and_then(|ch| ch.to_digit(16)) else {
+            let Some(digit) = self.peek().and_then(|b| (b as char).to_digit(16)) else {
                 return Err(JsonError::InvalidUnicode {
-                    sequence: self.input[start..self.position].iter().collect(),
+                    sequence: slice_to_string(&self.input[start..self.position]),
                     position: self.position,
                 });
             };
@@ -217,12 +220,12 @@ impl Tokenizer {
             position,
         };
 
-        if self.peek() != Some('\\') {
+        if self.peek() != Some(b'\\') {
             return Err(invalid());
         }
         self.advance();
 
-        if self.peek() != Some('u') {
+        if self.peek() != Some(b'u') {
             return Err(invalid());
         }
         self.advance();
@@ -242,16 +245,29 @@ impl Tokenizer {
     }
 }
 
-fn single_char_token(ch: char) -> Option<Token> {
-    match ch {
-        '{' => Some(Token::LeftBrace),
-        '}' => Some(Token::RightBrace),
-        '[' => Some(Token::LeftBracket),
-        ']' => Some(Token::RightBracket),
-        ',' => Some(Token::Comma),
-        ':' => Some(Token::Colon),
+fn single_char_token(byte: u8) -> Option<Token> {
+    match byte {
+        b'{' => Some(Token::LeftBrace),
+        b'}' => Some(Token::RightBrace),
+        b'[' => Some(Token::LeftBracket),
+        b']' => Some(Token::RightBracket),
+        b',' => Some(Token::Comma),
+        b':' => Some(Token::Colon),
         _ => None,
     }
+}
+
+fn slice_to_string(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+fn char_at(bytes: &[u8], position: usize) -> String {
+    let end = (position + 4).min(bytes.len());
+    String::from_utf8_lossy(&bytes[position..end])
+        .chars()
+        .next()
+        .map(String::from)
+        .unwrap_or_default()
 }
 
 fn is_high_surrogate(code_point: u32) -> bool {
@@ -497,16 +513,16 @@ mod tests {
     }
 
     #[test]
-    fn test_position_is_char_index_after_multibyte() {
-        // With a Vec<char> cursor, position is a char index: 'é' counts as one.
-        // '@' is the 8th char (index 7), regardless of 'é' being 2 bytes.
+    fn test_position_is_byte_index_after_multibyte() {
+        // With a &[u8] cursor, position is a byte index: 'é' is 2 bytes.
+        // '@' is at byte index 8 (0:" 1:c 2:a 3:f 4-5:é 6:" 7:space 8:@).
         let err = tokenize(r#""café" @"#).unwrap_err();
         assert_eq!(
             err,
             JsonError::UnexpectedToken {
                 expected: "valid JSON token".to_string(),
                 found: "@".to_string(),
-                position: 7,
+                position: 8,
             }
         );
     }
@@ -774,19 +790,19 @@ mod tests {
     #[test]
     fn test_advance_sequence() {
         let mut tokenizer = Tokenizer::new("abc");
-        assert_eq!(tokenizer.advance(), Some('a'));
-        assert_eq!(tokenizer.advance(), Some('b'));
-        assert_eq!(tokenizer.advance(), Some('c'));
+        assert_eq!(tokenizer.advance(), Some(b'a'));
+        assert_eq!(tokenizer.advance(), Some(b'b'));
+        assert_eq!(tokenizer.advance(), Some(b'c'));
         assert_eq!(tokenizer.advance(), None);
     }
 
     #[test]
     fn test_peek_doesnt_advance() {
         let mut tokenizer = Tokenizer::new("ab");
-        assert_eq!(tokenizer.peek(), Some('a'));
-        assert_eq!(tokenizer.peek(), Some('a'));
-        assert_eq!(tokenizer.peek(), Some('a'));
-        assert_eq!(tokenizer.advance(), Some('a'));
+        assert_eq!(tokenizer.peek(), Some(b'a'));
+        assert_eq!(tokenizer.peek(), Some(b'a'));
+        assert_eq!(tokenizer.peek(), Some(b'a'));
+        assert_eq!(tokenizer.advance(), Some(b'a'));
     }
 
     #[test]
