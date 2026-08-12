@@ -139,12 +139,12 @@ impl<'a> Tokenizer<'a> {
     fn read_number(&mut self) -> Result<Token> {
         let start = self.position;
         let number_bytes = self.take_while(|b| b.is_ascii_digit() || b == b'.' || b == b'-');
-        let number_str = slice_to_string(number_bytes);
+        let number_str = std::str::from_utf8(number_bytes).unwrap_or_default();
 
         match number_str.parse::<f64>() {
             Ok(number) => Ok(Token::Number(number)),
             Err(_) => Err(JsonError::InvalidNumber {
-                value: number_str,
+                value: number_str.to_string(),
                 position: start,
             }),
         }
