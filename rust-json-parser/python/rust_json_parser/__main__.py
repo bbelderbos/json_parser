@@ -61,12 +61,19 @@ def make_nested_json(depth: int) -> str:
     return f"{opening}null{'}' * depth}"
 
 
-def benchmark_inputs() -> list[tuple[str, str, int]]:
+def load_fixture(name: str) -> str:
+    path = Path(__file__).parents[2] / "benches" / "data" / f"{name}.json"
+    return path.read_text(encoding="utf-8")
+
+
+def benchmark_inputs() -> list[tuple[str, str, int, int]]:
     return [
-        ("Small", make_test_json(1), 1000),
-        ("Medium", make_test_json(50), 200),
-        ("Large", make_test_json(1000), 20),
-        (f"Nested x{NESTING_DEPTH}", make_nested_json(NESTING_DEPTH), 500),
+        ("Small", make_test_json(1), 1000, 100),
+        ("Medium", make_test_json(50), 200, 50),
+        (f"Nested x{NESTING_DEPTH}", make_nested_json(NESTING_DEPTH), 500, 100),
+        ("Twitter\n(strings)", load_fixture("twitter"), 100, 20),
+        ("Citm\n(mixed)", load_fixture("citm_catalog"), 50, 10),
+        ("Canada\n(floats)", load_fixture("canada"), 50, 10),
     ]
 
 
@@ -96,10 +103,10 @@ def run_benchmarks() -> None:
     table.add_column("json (C)")
     table.add_column("simplejson\n(pure py)")
 
-    for label, test_json, iterations in benchmark_inputs():
-        rust, py_json, simple = benchmark_performance(test_json, iterations)
-        serde = benchmark_serde_json(test_json, iterations)
-        converted = benchmark_parse_json(test_json, iterations)
+    for label, test_json, iterations, warmup in benchmark_inputs():
+        rust, py_json, simple = benchmark_performance(test_json, iterations, warmup)
+        serde = benchmark_serde_json(test_json, iterations, warmup)
+        converted = benchmark_parse_json(test_json, iterations, warmup)
         table.add_row(
             f"{label}\n[dim]{len(test_json):,} B x{iterations:,}[/dim]",
             ms(rust),
