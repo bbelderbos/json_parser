@@ -1,6 +1,7 @@
-use rust_json_parser::{Result, parse};
+use rust_json_parser::parse;
+use std::error::Error;
 
-fn main() -> Result<()> {
+fn main() -> Result<(), Box<dyn Error>> {
     let json = r#"{
         "name": "Rust JSON Parser",
         "version": 1.0,
@@ -15,21 +16,21 @@ fn main() -> Result<()> {
 
     let name = value
         .get("name")
-        .expect("missing \"name\" field")
+        .ok_or("missing \"name\" field")?
         .as_str()
-        .expect("\"name\" should be a string");
+        .ok_or("\"name\" should be a string")?;
     let features = value
         .get("features")
-        .expect("missing \"features\" field")
+        .ok_or("missing \"features\" field")?
         .as_array()
-        .expect("\"features\" should be an array");
+        .ok_or("\"features\" should be an array")?;
     let author = value
         .get("metadata")
-        .expect("missing \"metadata\" field")
+        .ok_or("missing \"metadata\" field")?
         .get("author")
-        .expect("missing \"author\" field")
+        .ok_or("missing \"author\" field")?
         .as_str()
-        .expect("\"author\" should be a string");
+        .ok_or("\"author\" should be a string")?;
 
     println!("name: {name}");
     println!("features: {features:?}");
