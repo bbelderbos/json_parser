@@ -129,18 +129,18 @@ elif not sys.stdin.isatty():
     input_arg = sys.stdin.read()
     parse = parse_json
 else:
-    print("Usage: uv run python -m rust_json_parser <json_string_or_file_path>")
-    print("       ... | uv run python -m rust_json_parser")
+    print("Usage: uv run python -m rust_json_parser <json_string_or_file_path>", file=sys.stderr)
+    print("       ... | uv run python -m rust_json_parser", file=sys.stderr)
     sys.exit(1)
 
 try:
     print(dumps(parse(input_arg), indent=4))
-except FileNotFoundError:
-    print(f"Error: File '{input_arg}' not found.")
+except OSError as e:
+    print(f"Error: cannot read '{input_arg}' - {e}", file=sys.stderr)
     sys.exit(1)
 except ValueError as e:
-    print(f"Error: Invalid JSON - {e}")
+    print(f"Error: Invalid JSON - {e}", file=sys.stderr)
     sys.exit(1)
 except Exception as e:
-    print(f"An unexpected error occurred: {e}")
+    print(f"An unexpected error occurred: {e}", file=sys.stderr)
     sys.exit(1)

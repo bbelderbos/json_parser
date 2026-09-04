@@ -60,8 +60,8 @@ impl JsonParser {
             Some(Token::Boolean(b)) => Ok(JsonValue::Boolean(b)),
             Some(Token::Number(n)) => Ok(JsonValue::Number(n)),
             Some(Token::String(s)) => Ok(JsonValue::String(s)),
-            Some(Token::LeftBracket) => Ok(self.parse_array()?),
-            Some(Token::LeftBrace) => Ok(self.parse_object()?),
+            Some(Token::LeftBracket) => self.parse_array(),
+            Some(Token::LeftBrace) => self.parse_object(),
             Some(token) => Err(JsonError::UnexpectedToken {
                 expected: "null, boolean, number, string, array, or object".to_string(),
                 found: format!("{token:?}"),
@@ -71,7 +71,7 @@ impl JsonParser {
     }
 
     fn parse_array(&mut self) -> Result<JsonValue> {
-        let mut items = Vec::with_capacity(4);
+        let mut items = Vec::new();
         match self.peek() {
             Some(Token::RightBracket) => {
                 self.position += 1;
@@ -109,7 +109,7 @@ impl JsonParser {
     }
 
     fn parse_object(&mut self) -> Result<JsonValue> {
-        let mut items = HashMap::with_capacity(8);
+        let mut items = HashMap::new();
 
         let first_key = match self.advance() {
             Some(Token::RightBrace) => return Ok(JsonValue::Object(items)),

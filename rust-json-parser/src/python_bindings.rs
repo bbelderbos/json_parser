@@ -145,20 +145,18 @@ fn py_to_json_value(obj: &Bound<PyAny>) -> PyResult<JsonValue> {
     }
 
     if let Ok(list) = obj.cast::<PyList>() {
-        let mut arr = Vec::new();
-        for item in list.iter() {
-            arr.push(py_to_json_value(&item)?);
-        }
+        let arr = list
+            .iter()
+            .map(|item| py_to_json_value(&item))
+            .collect::<PyResult<Vec<_>>>()?;
         return Ok(JsonValue::Array(arr));
     }
 
     if let Ok(dict) = obj.cast::<PyDict>() {
-        let mut map = HashMap::new();
-        for (key, value) in dict.iter() {
-            let key_str = key.extract::<String>()?;
-            let value_json = py_to_json_value(&value)?;
-            map.insert(key_str, value_json);
-        }
+        let map = dict
+            .iter()
+            .map(|(key, value)| Ok((key.extract::<String>()?, py_to_json_value(&value)?)))
+            .collect::<PyResult<HashMap<_, _>>>()?;
         return Ok(JsonValue::Object(map));
     }
 
