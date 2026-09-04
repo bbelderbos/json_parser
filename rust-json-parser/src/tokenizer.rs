@@ -155,7 +155,7 @@ impl Tokenizer {
     }
 
     fn peek(&self) -> Option<char> {
-        self.input.get(self.position).cloned()
+        self.input.get(self.position).copied()
     }
 
     fn read_hex_digits(&mut self, count: usize) -> Result<u32> {
