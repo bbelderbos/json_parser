@@ -48,6 +48,12 @@ impl JsonValue {
         }
     }
 
+    pub fn pretty_print(&self, indent: usize) -> String {
+        let mut result = String::new();
+        write_json(self, &mut result, Some(indent), 0).expect("writing to a String is infallible");
+        result
+    }
+
     pub fn get(&self, key: &str) -> Option<&JsonValue> {
         match self {
             JsonValue::Object(obj) => obj.get(key),
@@ -63,7 +69,57 @@ impl JsonValue {
     }
 }
 
-fn write_json_string(f: &mut fmt::Formatter<'_>, s: &str) -> fmt::Result {
+fn write_json<W: fmt::Write>(
+    value: &JsonValue,
+    f: &mut W,
+    indent: Option<usize>,
+    current: usize,
+) -> fmt::Result {
+    let inner = current + indent.unwrap_or(0);
+    let (nl, pad, close) = match indent {
+        Some(_) => ("\n", " ".repeat(inner), " ".repeat(current)),
+        None => ("", String::new(), String::new()),
+    };
+
+    match value {
+        JsonValue::Null => f.write_str("null"),
+        JsonValue::Boolean(b) => write!(f, "{b}"),
+        JsonValue::Number(n) => write!(f, "{n}"),
+        JsonValue::String(s) => write_json_string(f, s),
+        JsonValue::Array(arr) => {
+            f.write_char('[')?;
+            for (i, v) in arr.iter().enumerate() {
+                if i > 0 {
+                    f.write_char(',')?;
+                }
+                write!(f, "{nl}{pad}")?;
+                write_json(v, f, indent, inner)?;
+            }
+            if !arr.is_empty() {
+                write!(f, "{nl}{close}")?;
+            }
+            f.write_char(']')
+        }
+        JsonValue::Object(obj) => {
+            f.write_char('{')?;
+            for (i, (k, v)) in obj.iter().enumerate() {
+                if i > 0 {
+                    f.write_char(',')?;
+                }
+                write!(f, "{nl}{pad}")?;
+                write_json_string(f, k)?;
+                f.write_char(':')?;
+                write_json(v, f, indent, inner)?;
+            }
+            if !obj.is_empty() {
+                write!(f, "{nl}{close}")?;
+            }
+            f.write_char('}')
+        }
+    }
+}
+
+fn write_json_string<W: fmt::Write>(f: &mut W, s: &str) -> fmt::Result {
     write!(f, "\"")?;
     for c in s.chars() {
         match c {
@@ -83,33 +139,7 @@ fn write_json_string(f: &mut fmt::Formatter<'_>, s: &str) -> fmt::Result {
 
 impl fmt::Display for JsonValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            JsonValue::Null => write!(f, "null"),
-            JsonValue::Boolean(b) => write!(f, "{b}"),
-            JsonValue::Number(n) => write!(f, "{n}"),
-            JsonValue::String(s) => write_json_string(f, s),
-            JsonValue::Array(arr) => {
-                write!(f, "[")?;
-                for (i, v) in arr.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ",")?;
-                    }
-                    write!(f, "{v}")?;
-                }
-                write!(f, "]")
-            }
-            JsonValue::Object(obj) => {
-                write!(f, "{{")?;
-                for (i, (k, v)) in obj.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ",")?;
-                    }
-                    write_json_string(f, k)?;
-                    write!(f, ":{v}")?;
-                }
-                write!(f, "}}")
-            }
-        }
+        write_json(self, f, None, 0)
     }
 }
 
@@ -217,6 +247,28 @@ mod tests {
         assert!(output.contains("\"arr\""));
         assert!(output.contains("[1,2]"));
         Ok(())
+    }
+
+    #[test]
+    fn test_pretty_print_escapes_keys_and_values() -> Result<()> {
+        let value = JsonValue::Object(HashMap::from([(
+            "say \"hi\"".to_string(),
+            JsonValue::String("line\nbreak".to_string()),
+        )]));
+
+        let pretty = value.pretty_print(2);
+        assert!(pretty.contains(r#""say \"hi\"""#));
+        assert!(pretty.contains(r#""line\nbreak""#));
+
+        let mut parser = JsonParser::new(&pretty)?;
+        assert_eq!(parser.parse()?, value);
+        Ok(())
+    }
+
+    #[test]
+    fn test_pretty_print_string_not_double_quoted() {
+        let value = JsonValue::String("hello".to_string());
+        assert_eq!(value.pretty_print(2), r#""hello""#);
     }
 
     #[test]

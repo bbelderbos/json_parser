@@ -1,0 +1,22 @@
+[project]
+name = "rust-json-parser"
+version = "0.1.0"
+description = "Rust-backed JSON parser with Python bindings"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "maturin>=1.14.1",
+    "pytest>=9.1.1",
+]
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+python-source = "python"
+module-name = "rust_json_parser._rust_json_parser"
+features = ["python"]
