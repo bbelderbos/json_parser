@@ -50,7 +50,7 @@ impl JsonValue {
 
     pub fn pretty_print(&self, indent: usize) -> String {
         let mut result = String::new();
-        let _ = write_json(self, &mut result, Some(indent), 0);
+        write_json(self, &mut result, Some(indent), 0).expect("writing to a String is infallible");
         result
     }
 
