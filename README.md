@@ -56,7 +56,7 @@ raise `FileNotFoundError`, unreadable ones `PermissionError`.
 
 ## Benchmarking
 
-`--benchmark` times four input shapes against three baselines and prints the ratios.
+`--benchmark` times six input shapes against three baselines and prints the ratios.
 
 A parser that stops at a Rust `JsonValue` tree and one that hands back a Python `dict` have
 not done the same amount of work, so there are two "ours" columns and each baseline sits
@@ -64,13 +64,15 @@ next to the one it's comparable with:
 
 | Input | Ours (Rust tree) | serde_json | Ours (Python objs) | json (C) | simplejson (pure Python) |
 |-------|-----------------:|-----------:|-------------------:|---------:|-------------------------:|
-| Small (260 B) | 1.65ms | 1.01ms — 1.63x slower | 2.48ms (+1.50x) | 1.47ms — 1.69x slower | 12.91ms — **5.20x faster** |
-| Medium (13 KB) | 14.31ms | 9.48ms — 1.51x slower | 22.90ms (+1.60x) | 9.16ms — 2.50x slower | 132.53ms — **5.79x faster** |
-| Large (269 KB) | 31.14ms | 19.59ms — 1.59x slower | 47.52ms (+1.53x) | 19.95ms — 2.38x slower | 267.12ms — **5.62x faster** |
-| Nested x100 (2.4 KB) | 10.19ms | 6.85ms — 1.49x slower | 14.41ms (+1.41x) | 6.12ms — 2.35x slower | 99.92ms — **6.94x faster** |
+| Small (260 B) | 1.48ms | 0.98ms — 1.50x slower | 2.42ms (+1.64x) | 1.38ms — 1.76x slower | 12.79ms — **5.29x faster** |
+| Medium (13 KB) | 14.64ms | 9.18ms — 1.60x slower | 21.86ms (+1.49x) | 8.96ms — 2.44x slower | 127.67ms — **5.84x faster** |
+| Nested x100 (2.4 KB) | 9.88ms | 6.78ms — 1.46x slower | 14.55ms (+1.47x) | 6.27ms — 2.32x slower | 92.79ms — **6.38x faster** |
+| Twitter (strings, 568 KB) | 252.93ms | 118.92ms — 2.13x slower | 354.47ms (+1.40x) | 235.75ms — 1.50x slower | 1574.29ms — **4.44x faster** |
+| Citm (mixed, 1.7 MB) | 414.69ms | 176.82ms — 2.35x slower | 557.71ms (+1.34x) | 257.12ms — 2.17x slower | 1829.15ms — **3.28x faster** |
+| Canada (floats, 2.3 MB) | 636.78ms | 230.67ms — 2.76x slower | 765.65ms (+1.20x) | 940.28ms — **1.23x faster** | 4326.15ms — **5.65x faster** |
 
 *macOS arm64, Python 3.12, release build. Totals for the whole iteration batch (1,000 / 200
-/ 20 / 500 respectively), not per parse.*
+/ 500 / 100 / 50 / 50 respectively), not per parse.*
 
 ### What the baselines mean
 
@@ -87,20 +89,22 @@ next to the one it's comparable with:
 
 `Ours (Rust tree)` times `parse()`. `Ours (Python objs)` times what `parse_json()` actually
 does: `parse()` plus the `IntoPyObject` pass that allocates a `PyDict` per object, a
-`PyList` per array, and a Python `float`/`str` per leaf. That conversion is the `+1.4x` to
-`+1.6x` in parentheses — **a third to a half of the total cost of the function a Python
+`PyList` per array, and a Python `float`/`str` per leaf. That conversion is the `+1.2x` to
+`+1.6x` in parentheses — **a fifth to two-fifths of the total cost of the function a Python
 caller imports**, on every input shape tested.
 
 Comparing the Rust-tree column against `json.loads` would have been flattering and wrong:
-it reads as 1.1–1.6x slower, while the end-to-end truth is 2.4–2.5x slower on anything
-bigger than a toy payload. `json.loads` builds those same Python objects and its column
-includes that cost, so this is the comparison that holds. The simplejson advantage shrinks
-the same way, from ~8x down to ~5.6x.
+it reads as only 1.1–1.6x slower, while the end-to-end truth is 1.5–2.4x slower on every
+shape but the float-heavy `canada.json`. `json.loads` builds those same Python objects and
+its column includes that cost, so this is the comparison that holds. The simplejson
+advantage shrinks the same way, from ~4–9x on the Rust tree down to ~3–6x once conversion
+is counted.
 
-Note the conversion overhead is roughly flat across sizes, which says it scales with the
-*number of values*, not bytes — as expected when the cost is one Python allocation per
-node. It's also the most obvious remaining optimization target: `PyDict` preallocation and
-interning repeated keys both attack it directly.
+Note the conversion overhead is heaviest where values are densest — `+1.64x` on `Small`,
+down to `+1.20x` on float-heavy `canada.json` — which says it scales with the *number of
+values*, not bytes, as expected when the cost is one Python allocation per node. It's also
+the most obvious remaining optimization target: `PyDict` preallocation and interning
+repeated keys both attack it directly.
 
 ### The simplejson trap
 
@@ -132,16 +136,18 @@ than reporting numbers that look fine and aren't.
 - **Release builds only.** The single biggest factor, worth ~10x.
 - **Warmup.** Each parser runs 100 untimed parses before measurement so cold caches and
   allocator startup stay out of the numbers.
-- **Iteration counts** scale down with payload size (1,000 for Small, 20 for Large). The
-  low counts on big inputs are the weak point: repeat runs of the Large row spread ~15%,
-  versus ~5% at 200 iterations. Treat single-run differences under ~15% there as noise.
+- **Iteration counts** scale down with payload size (1,000 for Small, 50 for the multi-MB
+  fixtures). The low counts on big inputs are the weak point: repeat runs of the `Canada`
+  and `Citm` rows spread ~15%, versus ~5% at 200 iterations. Treat single-run differences
+  under ~15% there as noise.
 - **Repeat and take the minimum** when comparing builds. The minimum discards scheduler
   interference in a way the mean does not.
 
-Payloads are generated in `__main__.py` rather than read from fixture files, which keeps the
-repo small but means numbers are only comparable across machines running the same generator.
-For cross-machine comparison, use fixed fixtures — ideally the standard corpus
-(`twitter.json`, `citm_catalog.json`, `canada.json`).
+The `Small`, `Medium`, and `Nested` payloads are generated in `__main__.py`; the `Twitter`,
+`Citm`, and `Canada` rows read the standard JSON corpus (`twitter.json`, `citm_catalog.json`,
+`canada.json`) committed under `benches/data/`. The generated rows are only comparable across
+machines running the same generator, while the vendored fixtures give a fixed, cross-machine
+baseline — which is why they're committed rather than regenerated.
 
 ## Development
 
