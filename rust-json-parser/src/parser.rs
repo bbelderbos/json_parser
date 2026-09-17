@@ -25,13 +25,14 @@ impl JsonParser {
         })
     }
 
-    /// Takes the current token out of `self.tokens`, leaving `Token::Null` in its slot to
-    /// avoid a clone. Safe because `position` only moves forward, so a taken slot is dead.
+    /// Takes the current token out of `self.tokens`, leaving a throwaway `Token::Null` in
+    /// its slot to avoid a clone. Safe because `position` only moves forward, so a taken
+    /// slot is dead.
     fn advance(&mut self) -> Option<Token> {
         if self.is_at_end() {
             None
         } else {
-            let token = std::mem::take(&mut self.tokens[self.position]);
+            let token = std::mem::replace(&mut self.tokens[self.position], Token::Null);
             self.position += 1;
             Some(token)
         }

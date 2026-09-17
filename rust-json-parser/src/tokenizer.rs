@@ -1,7 +1,7 @@
 use crate::error::{JsonError, Result};
 
 /// A single lexical unit scanned from the input, before any grammar is applied.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     /// `{`
     LeftBrace,
@@ -22,7 +22,6 @@ pub enum Token {
     /// A `true` or `false` literal.
     Boolean(bool),
     /// The `null` literal.
-    #[default]
     Null,
 }
 
