@@ -25,6 +25,8 @@ impl JsonParser {
         })
     }
 
+    /// Takes the current token out of `self.tokens`, leaving `Token::Null` in its slot to
+    /// avoid a clone. Safe because `position` only moves forward, so a taken slot is dead.
     fn advance(&mut self) -> Option<Token> {
         if self.is_at_end() {
             None
