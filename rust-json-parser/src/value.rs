@@ -1,32 +1,43 @@
 use std::collections::HashMap;
 use std::fmt;
 
+/// A parsed JSON document, or any value nested inside one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum JsonValue {
+    /// The `null` literal.
     Null,
+    /// The `true` or `false` literal.
     Boolean(bool),
+    /// A number; JSON draws no integer/float distinction, so every number is an `f64`.
     Number(f64),
+    /// A string with all escape sequences already decoded.
     String(String),
+    /// An ordered sequence of values.
     Array(Vec<JsonValue>),
+    /// A set of key-value pairs; backed by a [`HashMap`], so key order is not preserved.
     Object(HashMap<String, JsonValue>),
 }
 
 impl JsonValue {
+    /// Whether this value is [`JsonValue::Null`].
     pub fn is_null(&self) -> bool {
         matches!(self, JsonValue::Null)
     }
+    /// The inner string, or `None` if this is not a [`JsonValue::String`].
     pub fn as_str(&self) -> Option<&str> {
         match self {
             JsonValue::String(s) => Some(s.as_str()),
             _ => None,
         }
     }
+    /// The inner number, or `None` if this is not a [`JsonValue::Number`].
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             JsonValue::Number(n) => Some(*n),
             _ => None,
         }
     }
+    /// The inner boolean, or `None` if this is not a [`JsonValue::Boolean`].
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             JsonValue::Boolean(b) => Some(*b),
@@ -34,6 +45,7 @@ impl JsonValue {
         }
     }
 
+    /// The inner slice, or `None` if this is not a [`JsonValue::Array`].
     pub fn as_array(&self) -> Option<&Vec<JsonValue>> {
         match self {
             JsonValue::Array(arr) => Some(arr),
@@ -41,6 +53,7 @@ impl JsonValue {
         }
     }
 
+    /// The inner map, or `None` if this is not a [`JsonValue::Object`].
     pub fn as_object(&self) -> Option<&HashMap<String, JsonValue>> {
         match self {
             JsonValue::Object(obj) => Some(obj),
@@ -48,12 +61,14 @@ impl JsonValue {
         }
     }
 
+    /// Serialize back to JSON with `indent` spaces per nesting level.
     pub fn pretty_print(&self, indent: usize) -> String {
         let mut result = String::new();
         write_json(self, &mut result, Some(indent), 0).expect("writing to a String is infallible");
         result
     }
 
+    /// Look up `key` in an object, or `None` for a missing key or a non-object.
     pub fn get(&self, key: &str) -> Option<&JsonValue> {
         match self {
             JsonValue::Object(obj) => obj.get(key),
@@ -61,6 +76,7 @@ impl JsonValue {
         }
     }
 
+    /// Look up `index` in an array, or `None` for an out-of-range index or a non-array.
     pub fn get_index(&self, index: usize) -> Option<&JsonValue> {
         match self {
             JsonValue::Array(arr) => arr.get(index),

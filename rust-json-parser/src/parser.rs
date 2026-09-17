@@ -3,12 +3,19 @@ use crate::tokenizer::{Token, Tokenizer};
 use crate::value::JsonValue;
 use std::collections::HashMap;
 
+/// A recursive-descent parser over the tokens scanned from one input.
 pub struct JsonParser {
     tokens: Vec<Token>,
     position: usize,
 }
 
 impl JsonParser {
+    /// Tokenize `input` and hold the result ready for [`JsonParser::parse`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`JsonError`] if `input` cannot be tokenized, e.g. a stray character
+    /// or an unterminated string.
     pub fn new(input: &str) -> Result<Self> {
         let mut tokenizer = Tokenizer::new(input);
         let tokens = tokenizer.tokenize()?;
@@ -18,20 +25,33 @@ impl JsonParser {
         })
     }
 
+    /// Takes the current token out of `self.tokens`, leaving a throwaway `Token::Null` in
+    /// its slot to avoid a clone. Safe because `position` only moves forward, so a taken
+    /// slot is dead.
     fn advance(&mut self) -> Option<Token> {
         if self.is_at_end() {
             None
         } else {
-            let token = self.tokens[self.position].clone();
+            let token = std::mem::replace(&mut self.tokens[self.position], Token::Null);
             self.position += 1;
             Some(token)
         }
+    }
+
+    fn peek(&self) -> Option<&Token> {
+        self.tokens.get(self.position)
     }
 
     fn is_at_end(&self) -> bool {
         self.position >= self.tokens.len()
     }
 
+    /// Parse the tokens into a single [`JsonValue`], requiring the whole input to be consumed.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`JsonError`] on malformed structure, such as a missing `:` or `,`, an
+    /// unclosed container, or trailing content after the top-level value.
     pub fn parse(&mut self) -> Result<JsonValue> {
         let value = self.parse_value()?;
         let position = self.position;
@@ -68,12 +88,12 @@ impl JsonParser {
 
     fn parse_array(&mut self) -> Result<JsonValue> {
         let mut items = Vec::new();
-        match self.advance() {
-            Some(Token::RightBracket) => return Ok(JsonValue::Array(items)),
-            Some(_) => {
-                self.position -= 1; // Unconsume the token
-                items.push(self.parse_value()?);
+        match self.peek() {
+            Some(Token::RightBracket) => {
+                self.position += 1;
+                return Ok(JsonValue::Array(items));
             }
+            Some(_) => items.push(self.parse_value()?),
             None => {
                 return Err(JsonError::UnexpectedEndOfInput {
                     expected: "array value or ']'".to_string(),
