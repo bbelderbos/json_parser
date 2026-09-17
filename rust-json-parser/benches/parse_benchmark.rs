@@ -8,7 +8,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     for name in FIXTURES {
         let data = std::fs::read_to_string(format!("benches/data/{name}.json")).unwrap();
         group.throughput(Throughput::Bytes(data.len() as u64));
-        group.bench_function(*name, |b| b.iter(|| rust_json_parser::parse(black_box(&data))));
+        group.bench_function(*name, |b| {
+            b.iter(|| rust_json_parser::parse(black_box(&data)))
+        });
     }
     group.finish();
 }

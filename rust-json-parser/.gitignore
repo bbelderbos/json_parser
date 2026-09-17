@@ -222,3 +222,4 @@ __marimo__/
 # macOS / Rust debug symbols
 *.dSYM/
 profile.json.gz
+.claude/settings.local.json

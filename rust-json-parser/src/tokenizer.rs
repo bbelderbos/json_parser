@@ -1,16 +1,27 @@
 use crate::error::{JsonError, Result};
 
+/// A single lexical unit scanned from the input, before any grammar is applied.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum Token {
+    /// `{`
     LeftBrace,
+    /// `}`
     RightBrace,
+    /// `[`
     LeftBracket,
+    /// `]`
     RightBracket,
+    /// `,`
     Comma,
+    /// `:`
     Colon,
+    /// A string literal with its escapes already decoded.
     String(String),
+    /// A numeric literal, parsed as an `f64`.
     Number(f64),
+    /// A `true` or `false` literal.
     Boolean(bool),
+    /// The `null` literal.
     #[default]
     Null,
 }

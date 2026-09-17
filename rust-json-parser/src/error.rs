@@ -1,5 +1,6 @@
 use std::fmt;
 
+/// A [`Result`](std::result::Result) whose error is always a [`JsonError`].
 pub type Result<T> = std::result::Result<T, JsonError>;
 
 /// Everything that can go wrong while tokenizing or parsing, with the character offset
@@ -10,25 +11,51 @@ pub enum JsonError {
     /// `@`, a misspelled literal like `tru`, a missing `:` between key and value, a
     /// missing `,` between elements, or trailing content after the top-level value.
     UnexpectedToken {
+        /// What the grammar allowed at that point.
         expected: String,
+        /// The token text that showed up instead.
         found: String,
+        /// Character offset where the offending token starts.
         position: usize,
     },
     /// The input ran out while a value was still open — an unclosed `[` or `{`, or a
     /// key with no value. Empty input lands here too.
-    UnexpectedEndOfInput { expected: String, position: usize },
+    UnexpectedEndOfInput {
+        /// What the grammar still needed when the input ran out.
+        expected: String,
+        /// Character offset where the input ended.
+        position: usize,
+    },
     /// A run of digits, `-`, and `.` that does not parse as an `f64`, such as `1.2.3`
     /// or a bare `-`.
-    InvalidNumber { value: String, position: usize },
+    InvalidNumber {
+        /// The digit run that failed to parse as an `f64`.
+        value: String,
+        /// Character offset where the number starts.
+        position: usize,
+    },
     /// A string opened with `"` that the input ends before closing, including an input
     /// ending mid-escape.
-    UnterminatedString { position: usize },
+    UnterminatedString {
+        /// Character offset of the opening `"`.
+        position: usize,
+    },
     /// A backslash followed by a character that is not a recognized escape; `\q`, say.
-    InvalidEscape { char: char, position: usize },
+    InvalidEscape {
+        /// The character following the backslash.
+        char: char,
+        /// Character offset of the backslash.
+        position: usize,
+    },
     /// A `\u` escape that is not four hex digits, resolves to no valid character, or is
     /// a broken surrogate pair — a high surrogate with no low surrogate following it.
     /// Malformed `\xNN` escapes report here as well.
-    InvalidUnicode { sequence: String, position: usize },
+    InvalidUnicode {
+        /// The `\u` escape text that could not be resolved.
+        sequence: String,
+        /// Character offset of the escape.
+        position: usize,
+    },
 }
 
 impl fmt::Display for JsonError {

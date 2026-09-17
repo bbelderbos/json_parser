@@ -29,6 +29,8 @@
 //! # Ok::<(), rust_json_parser::JsonError>(())
 //! ```
 
+#![warn(missing_docs)]
+
 mod error;
 mod parser;
 mod tokenizer;
@@ -40,6 +42,11 @@ pub use tokenizer::Token;
 pub use value::JsonValue;
 
 /// Parse a JSON document into a [`JsonValue`].
+///
+/// # Errors
+///
+/// Returns a [`JsonError`] pointing at the offset that broke, whether the input fails to
+/// tokenize or violates the grammar.
 pub fn parse(input: &str) -> Result<JsonValue> {
     JsonParser::new(input)?.parse()
 }
