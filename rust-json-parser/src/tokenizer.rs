@@ -1,16 +1,27 @@
 use crate::error::{JsonError, Result};
 
+/// A single lexical unit scanned from the input, before any grammar is applied.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
+    /// `{`
     LeftBrace,
+    /// `}`
     RightBrace,
+    /// `[`
     LeftBracket,
+    /// `]`
     RightBracket,
+    /// `,`
     Comma,
+    /// `:`
     Colon,
+    /// A string literal with its escapes already decoded.
     String(String),
+    /// A numeric literal, parsed as an `f64`.
     Number(f64),
+    /// A `true` or `false` literal.
     Boolean(bool),
+    /// The `null` literal.
     Null,
 }
 
@@ -55,7 +66,7 @@ impl Tokenizer {
     }
 
     fn take_while(&mut self, predicate: impl Fn(char) -> bool) -> String {
-        let mut taken = String::new();
+        let mut taken = String::with_capacity(16);
         while let Some(ch) = self.peek().filter(|&ch| predicate(ch)) {
             taken.push(ch);
             self.advance();
@@ -67,7 +78,25 @@ impl Tokenizer {
         let start = self.position;
         self.advance(); // consume the opening quote
 
-        let mut value = String::new();
+        let content_start = self.position;
+        while let Some(ch) = self.peek() {
+            match ch {
+                '"' => {
+                    let value = self.input[content_start..self.position].iter().collect();
+                    self.advance(); // consume the closing quote
+                    return Ok(value);
+                }
+                '\\' => return self.read_escaped_string(start, content_start),
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+        Err(JsonError::UnterminatedString { position: start })
+    }
+
+    fn read_escaped_string(&mut self, start: usize, content_start: usize) -> Result<String> {
+        let mut value: String = self.input[content_start..self.position].iter().collect();
         loop {
             match self.peek() {
                 None => return Err(JsonError::UnterminatedString { position: start }),

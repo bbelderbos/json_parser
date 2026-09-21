@@ -1,3 +1,36 @@
+//! A hand-written JSON parser: text in, [`JsonValue`] tree out.
+//!
+//! Parsing runs in two stages, a [`Token`] scanner followed by a recursive-descent
+//! [`JsonParser`], so failures point at the exact offset that broke.
+//!
+//! # Features
+//!
+//! - Full JSON grammar: objects, arrays, strings, numbers, `true`/`false`/`null`
+//! - String escapes including `\uXXXX` and surrogate pairs for astral characters
+//! - Typed errors ([`JsonError`]) carrying the position and what was expected
+//! - Serialization back to JSON via [`Display`](std::fmt::Display), or
+//!   [`JsonValue::pretty_print`] for indented output
+//! - Ergonomic access with [`JsonValue::get`], [`JsonValue::get_index`], and the
+//!   `as_*` accessors
+//! - Optional Python bindings behind the `python` feature
+//!
+//! # Example
+//!
+//! ```
+//! use rust_json_parser::parse;
+//!
+//! let value = parse(r#"{"name": "Ferris", "langs": ["rust"]}"#)?;
+//!
+//! assert_eq!(value.get("name").and_then(|v| v.as_str()), Some("Ferris"));
+//! assert_eq!(
+//!     value.get("langs").and_then(|v| v.get_index(0)).and_then(|v| v.as_str()),
+//!     Some("rust")
+//! );
+//! # Ok::<(), rust_json_parser::JsonError>(())
+//! ```
+
+#![warn(missing_docs)]
+
 mod error;
 mod parser;
 mod tokenizer;
@@ -9,6 +42,11 @@ pub use tokenizer::Token;
 pub use value::JsonValue;
 
 /// Parse a JSON document into a [`JsonValue`].
+///
+/// # Errors
+///
+/// Returns a [`JsonError`] pointing at the offset that broke, whether the input fails to
+/// tokenize or violates the grammar.
 pub fn parse(input: &str) -> Result<JsonValue> {
     JsonParser::new(input)?.parse()
 }

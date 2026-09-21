@@ -1,3 +1,17 @@
-from ._rust_json_parser import parse_json, parse_json_file, dumps
+from ._rust_json_parser import (
+    parse_json,
+    parse_json_file,
+    dumps,
+    benchmark_performance,
+    benchmark_parse_json,
+    benchmark_serde_json,
+)
 
-__all__ = ["parse_json", "parse_json_file", "dumps"]
+__all__ = [
+    "parse_json",
+    "parse_json_file",
+    "dumps",
+    "benchmark_performance",
+    "benchmark_parse_json",
+    "benchmark_serde_json",
+]

@@ -3,6 +3,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
+use std::time::Instant;
 
 impl<'py> IntoPyObject<'py> for JsonValue {
     type Target = PyAny;
@@ -70,11 +71,44 @@ impl From<JsonError> for PyErr {
     }
 }
 
+/// Parse a JSON string into Python objects.
+///
+/// # Example
+///
+/// ```python
+/// >>> from rust_json_parser import parse_json
+/// >>> parse_json('{"name": "Alice"}')
+/// {'name': 'Alice'}
+/// >>> parse_json('[1, true, null]')
+/// [1.0, True, None]
+/// ```
+///
+/// # Errors
+///
+/// Raises `ValueError` for any malformed input — a stray token, an unclosed array,
+/// object or string, an unparseable number, or a bad escape sequence. The message
+/// carries the position in the input where parsing failed.
 #[pyfunction]
 fn parse_json<'py>(py: Python<'py>, input: &str) -> PyResult<Bound<'py, PyAny>> {
     parse(input)?.into_pyobject(py)
 }
 
+/// Read a file and parse its contents into Python objects.
+///
+/// # Example
+///
+/// ```python
+/// >>> from rust_json_parser import parse_json_file
+/// >>> parse_json_file("config.json")
+/// {'debug': True}
+/// ```
+///
+/// # Errors
+///
+/// Raises `FileNotFoundError` for a missing path, `PermissionError` if it cannot be
+/// opened, and plain `OSError` for anything else that blocks the read, including
+/// contents that are not valid UTF-8. Raises `ValueError` on malformed JSON, same as
+/// [`parse_json`].
 #[pyfunction]
 fn parse_json_file<'py>(py: Python<'py>, file_path: &str) -> PyResult<Bound<'py, PyAny>> {
     let input = std::fs::read_to_string(file_path)?;
@@ -132,10 +166,103 @@ fn py_to_json_value(obj: &Bound<PyAny>) -> PyResult<JsonValue> {
     ))
 }
 
+/// Time `iterations` parses of `test_json` with the Rust parser, `json` and `simplejson`.
+///
+/// Each parser runs `warmup` untimed parses first, so allocator and cache effects from
+/// the first parse stay out of the measurement. Returns the three durations in seconds.
+/// Build with `--release` — a debug build is slow enough to make the comparison meaningless.
+#[pyfunction]
+#[pyo3(signature = (test_json, iterations=1000, warmup=100))]
+fn benchmark_performance(
+    py: Python<'_>,
+    test_json: &str,
+    iterations: usize,
+    warmup: usize,
+) -> PyResult<(f64, f64, f64)> {
+    // Benchmark Rust parser
+    for _ in 0..warmup {
+        let _ = parse(test_json)?;
+    }
+    let start_rust = Instant::now();
+    for _ in 0..iterations {
+        let _ = parse(test_json)?;
+    }
+    let duration_rust = start_rust.elapsed().as_secs_f64();
+
+    // Benchmark Python's built-in json module
+    let json_module = py.import("json")?;
+    for _ in 0..warmup {
+        let _ = json_module.call_method1("loads", (test_json,))?;
+    }
+    let start_python = Instant::now();
+    for _ in 0..iterations {
+        let _ = json_module.call_method1("loads", (test_json,))?;
+    }
+    let duration_json = start_python.elapsed().as_secs_f64();
+
+    // Benchmark simplejson module
+    let simplejson_module = py.import("simplejson")?;
+    for _ in 0..warmup {
+        let _ = simplejson_module.call_method1("loads", (test_json,))?;
+    }
+    let start_simple_json = Instant::now();
+    for _ in 0..iterations {
+        let _ = simplejson_module.call_method1("loads", (test_json,))?;
+    }
+    let duration_simple_json = start_simple_json.elapsed().as_secs_f64();
+
+    Ok((duration_rust, duration_json, duration_simple_json))
+}
+
+/// Time `iterations` parses of `test_json` through [`parse_json`], for reference.
+///
+/// Same work as [`benchmark_performance`]'s Rust timing plus the `IntoPyObject` pass that
+/// builds the Python dicts and lists — the like-for-like comparison against `json.loads`,
+/// which also returns Python objects.
+#[pyfunction]
+#[pyo3(signature = (test_json, iterations=1000, warmup=100))]
+fn benchmark_parse_json(
+    py: Python<'_>,
+    test_json: &str,
+    iterations: usize,
+    warmup: usize,
+) -> PyResult<f64> {
+    for _ in 0..warmup {
+        let _ = parse(test_json)?.into_pyobject(py)?;
+    }
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = parse(test_json)?.into_pyobject(py)?;
+    }
+    Ok(start.elapsed().as_secs_f64())
+}
+
+/// Time `iterations` parses of `test_json` with serde_json, for reference.
+///
+/// Answers "is my parser fast, or is Rust fast?" — serde_json is the tuned baseline
+/// the Rust ecosystem actually uses.
+#[pyfunction]
+#[pyo3(signature = (test_json, iterations=1000, warmup=100))]
+fn benchmark_serde_json(test_json: &str, iterations: usize, warmup: usize) -> PyResult<f64> {
+    for _ in 0..warmup {
+        let _: serde_json::Value =
+            serde_json::from_str(test_json).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    }
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _: serde_json::Value =
+            serde_json::from_str(test_json).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    }
+    Ok(start.elapsed().as_secs_f64())
+}
+
 #[pymodule]
 fn _rust_json_parser(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_json, m)?)?;
     m.add_function(wrap_pyfunction!(parse_json_file, m)?)?;
     m.add_function(wrap_pyfunction!(dumps, m)?)?;
+    m.add_function(wrap_pyfunction!(benchmark_performance, m)?)?;
+    m.add_function(wrap_pyfunction!(benchmark_parse_json, m)?)?;
+    m.add_function(wrap_pyfunction!(benchmark_serde_json, m)?)?;
     Ok(())
 }
