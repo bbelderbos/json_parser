@@ -1,0 +1,36 @@
+{
+  "id": "urn:example:doc:001",
+  "active": true,
+  "score": 98.6,
+  "tags": ["rust", "json", "parser", "benchmark"],
+  "nested": {
+    "level": 2,
+    "unicode": "café ☃ 🚀",
+    "escapes": "line1\nline2\ttabbed \"quoted\"",
+    "values": [null, false, true, 0, -1, 3.14159, 1e10, -2.5e-3]
+  },
+  "people": [
+    {
+      "name": "Ferris",
+      "langs": ["rust"],
+      "years": 8,
+      "contact": { "email": "ferris@example.com", "verified": true }
+    },
+    {
+      "name": "Ada",
+      "langs": ["python", "rust", "c"],
+      "years": 12,
+      "contact": { "email": "ada@example.com", "verified": false }
+    },
+    {
+      "name": "Grace",
+      "langs": ["cobol", "assembly"],
+      "years": 40,
+      "contact": { "email": "grace@example.com", "verified": true }
+    }
+  ],
+  "matrix": [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+  "empty_object": {},
+  "empty_array": [],
+  "description": "A representative JSON document covering objects, arrays, strings with escapes and unicode, numbers in several formats, booleans, and null."
+}
