@@ -1,13 +1,30 @@
-# rust-json-parser
+# bob-json-parser
 
 A JSON parser written from scratch in Rust, with Python bindings via PyO3. The parser itself
 uses no `serde` and no external parsing crates — a hand-written tokenizer and recursive-descent
 parser, exposed to Python as a native extension module. (`serde_json` is pulled in only as a
 benchmark baseline to compare against, never for parsing.)
 
-Built over six weeks as the capstone of the [Python to Rust](https://scriptertorust.com) cohort.
+Built over six weeks as the capstone of the [Scripter to Rust](https://scriptertorust.com) cohort.
 
 ## Install
+
+### Rust
+
+```bash
+cargo add bob-json-parser
+```
+
+The library is imported as `rust_json_parser`:
+
+```rust
+use rust_json_parser::parse;
+
+let value = parse(r#"{"name": "Ferris"}"#)?;
+assert_eq!(value.get("name").and_then(|v| v.as_str()), Some("Ferris"));
+```
+
+### Python
 
 The Python package and Rust crate live in `rust-json-parser/`; run everything from there.
 
