@@ -1,7 +1,14 @@
 [package]
-name = "rust-json-parser"
+name = "bob-json-parser"
 version = "0.1.0"
 edition = "2024"
+description = "A hand-written JSON tokenizer and recursive-descent parser, with optional Python bindings"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bbelderbos/json_parser"
+readme = "../README.md"
+keywords = ["json", "parser", "pyo3", "python"]
+categories = ["parser-implementations", "encoding"]
+include = ["src/**/*.rs", "LICENSE-*"]
 
 [lib]
 name = "rust_json_parser"
