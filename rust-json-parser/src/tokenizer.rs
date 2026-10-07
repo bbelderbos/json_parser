@@ -146,11 +146,11 @@ impl Tokenizer {
 
     fn read_number(&mut self) -> Result<Token> {
         let start = self.position;
-        let number_str = self.take_while(|ch| ch.is_ascii_digit() || ch == '.' || ch == '-');
+        let number_str = self.take_while(|ch| ch.is_ascii_digit() || "+-.eE".contains(ch));
 
         match number_str.parse::<f64>() {
-            Ok(number) => Ok(Token::Number(number)),
-            Err(_) => Err(JsonError::InvalidNumber {
+            Ok(number) if is_json_number(&number_str) => Ok(Token::Number(number)),
+            _ => Err(JsonError::InvalidNumber {
                 value: number_str,
                 position: start,
             }),
@@ -250,6 +250,33 @@ impl Tokenizer {
         let byte = self.read_hex_digits(2)?;
         Ok(char::from(byte as u8))
     }
+}
+
+/// JSON's number grammar is stricter than `f64::from_str`: no leading zeros, no bare `.`.
+fn is_json_number(s: &str) -> bool {
+    let s = s.strip_prefix('-').unwrap_or(s);
+    let (int, rest) = split_digits(s);
+    if int.is_empty() || (int.len() > 1 && int.starts_with('0')) {
+        return false;
+    }
+    let rest = match rest.strip_prefix('.') {
+        Some(fraction) => match split_digits(fraction) {
+            ("", _) => return false,
+            (_, rest) => rest,
+        },
+        None => rest,
+    };
+    match rest.strip_prefix(['e', 'E']) {
+        Some(exponent) => {
+            let exponent = exponent.strip_prefix(['+', '-']).unwrap_or(exponent);
+            matches!(split_digits(exponent), (digits, "") if !digits.is_empty())
+        }
+        None => rest.is_empty(),
+    }
+}
+
+fn split_digits(s: &str) -> (&str, &str) {
+    s.split_at(s.find(|ch: char| !ch.is_ascii_digit()).unwrap_or(s.len()))
 }
 
 fn single_char_token(ch: char) -> Option<Token> {
@@ -397,8 +424,25 @@ mod tests {
     }
 
     #[test]
+    fn test_exponent_numbers() -> Result<()> {
+        for (input, expected) in [
+            ("1e5", 1e5),
+            ("1E5", 1e5),
+            ("1e+5", 1e5),
+            ("2.5e-3", 2.5e-3),
+            ("-0", -0.0),
+            ("0.5", 0.5),
+        ] {
+            assert_eq!(tokenize(input)?, vec![Token::Number(expected)]);
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_malformed_numbers_rejected() {
-        for value in ["1-2-3", "1.2.3"] {
+        for value in [
+            "1-2-3", "1.2.3", "01", "-01", "1.", "-", "1e", "1e+", "1.e5", "-.5", "1e5.5",
+        ] {
             let err = tokenize(value).unwrap_err();
             assert_eq!(
                 err,
