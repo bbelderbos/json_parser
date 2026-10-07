@@ -8,7 +8,7 @@ repository = "https://github.com/bbelderbos/json_parser"
 readme = "../README.md"
 keywords = ["json", "parser", "pyo3", "python"]
 categories = ["parser-implementations", "encoding"]
-include = ["src/**/*.rs", "LICENSE-*"]
+include = ["/src/**/*.rs", "/LICENSE-*"]
 
 [lib]
 name = "rust_json_parser"
