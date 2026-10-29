@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JSON Parser Playground</title>
+<style>
+  :root { --bg: #fafafa; --fg: #1a1a1a; --muted: #666; --panel: #fff; --border: #ddd; --ok: #1a7f37; --err: #cf222e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --panel: #161b22; --border: #30363d; --ok: #3fb950; --err: #f85149; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 1.5rem; }
+  p { margin: 0 0 16px; color: var(--muted); }
+  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 700px) { .panes { grid-template-columns: 1fr; } }
+  textarea, pre { width: 100%; min-height: 360px; margin: 0; padding: 12px; background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 6px; font: 14px/1.4 ui-monospace, monospace; overflow: auto; }
+  textarea { resize: vertical; }
+  #status { margin-top: 8px; font-size: 14px; }
+  .ok { color: var(--ok); } .err { color: var(--err); }
+</style>
+</head>
+<body>
+<main>
+  <h1>JSON Parser Playground</h1>
+  <p>A hand-written Rust JSON parser compiled to WebAssembly. Type on the left; parsing runs in your browser.</p>
+  <div class="panes">
+    <textarea id="input" spellcheck="false" aria-label="JSON input">{"name": "Ferris", "langs": ["rust", "python"], "age": 1e1, "online": true}</textarea>
+    <pre id="output" aria-label="Parsed output"></pre>
+  </div>
+  <div id="status"></div>
+</main>
+<script type="module">
+import init, { parse_json_wasm } from "./wasm/rust_json_parser.js";
+
+await init();
+
+const input = document.getElementById("input");
+const output = document.getElementById("output");
+const status = document.getElementById("status");
+
+function run() {
+  const start = performance.now();
+  try {
+    output.textContent = parse_json_wasm(input.value);
+    status.className = "ok";
+    status.textContent = `Valid JSON, parsed in ${(performance.now() - start).toFixed(2)} ms`;
+  } catch (err) {
+    output.textContent = "";
+    status.className = "err";
+    status.textContent = String(err);
+  }
+}
+
+input.addEventListener("input", run);
+run();
+</script>
+</body>
+</html>

@@ -89,3 +89,6 @@ mod tests {
 
 #[cfg(feature = "python")]
 mod python_bindings;
+
+#[cfg(feature = "wasm")]
+mod wasm_bindings;
