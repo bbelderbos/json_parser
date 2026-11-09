@@ -45,6 +45,7 @@ dependencies = [
  "criterion",
  "pyo3",
  "serde_json",
+ "wasm-bindgen",
 ]
 
 [[package]]
